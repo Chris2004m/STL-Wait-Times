@@ -1,3 +1,7 @@
+# Ignore documentation and image files
+docs.md
+*.png
+
 # Documentation files to exclude
 process-todos.md
 CLAUDE.md

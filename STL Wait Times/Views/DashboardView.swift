@@ -1,372 +1,472 @@
 import SwiftUI
+import MapKit
+
+// MARK: - Bottom Sheet States
+enum BottomSheetState: CaseIterable {
+    case peek        // Shows 1 full row + peek of next
+    case medium      // Shows 2 full rows  
+    case expanded    // Shows 3+ rows with search
+    
+    var displayName: String {
+        switch self {
+        case .peek: return "Peek"
+        case .medium: return "Medium"
+        case .expanded: return "Expanded"
+        }
+    }
+}
+
+// MARK: - Constants
+private enum DashboardConstants {
+    // Bottom sheet offset percentages (matches Flighty app proportions)
+    static let peekOffset: CGFloat = 0.72      // Shows ~28% of screen
+    static let mediumOffset: CGFloat = 0.32    // Shows ~68% of screen  
+    static let expandedOffset: CGFloat = 0.06  // Shows ~94% of screen
+    
+    // UI spacing and sizing
+    static let cornerRadius: CGFloat = 20
+    static let handleWidth: CGFloat = 40
+    static let handleHeight: CGFloat = 5
+    static let cardSpacing: CGFloat = 16
+    static let dragThreshold: CGFloat = 60
+    
+    // Animation values
+    static let springResponse: CGFloat = 0.5
+    static let springDamping: CGFloat = 0.8
+    static let mapOpacity: CGFloat = 0.3
+    
+    // Wait Time Color Coding
+    static let waitTimeGreen = Color.green      // 0-20 min
+    static let waitTimeOrange = Color.orange    // 21-45 min
+    static let waitTimeRed = Color.red          // 46+ min
+    
+    // Standard iOS Colors
+    static let primaryBlue = Color.blue
+    static let systemGray = Color(.systemGray2)
+}
 
 struct DashboardView: View {
-    @StateObject private var viewModel = FacilityListViewModel()
-    @State private var selectedTab = 0
+    
+    // MARK: - State Properties
+    @State private var region = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 38.6270, longitude: -90.1994), // St. Louis
+        span: MKCoordinateSpan(latitudeDelta: 2.0, longitudeDelta: 2.0) // Wide view like Flighty
+    )
+    
+    @State private var sheetState: BottomSheetState = .peek
+    @State private var dragAmount = CGSize.zero
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Main content
-            NavigationView {
+        GeometryReader { geometry in
+            ZStack {
+                // Background Map - always fills top portion
+                Map(coordinateRegion: $region)
+                    .mapStyle(.standard(elevation: .flat))
+                    .ignoresSafeArea()
+                    .opacity(sheetState == .expanded ? DashboardConstants.mapOpacity : 1.0)
+                    .animation(.easeInOut(duration: 0.3), value: sheetState)
+                
+                // Bottom Sheet - always extends to bottom
                 VStack(spacing: 0) {
-                    // Main content - matches desired UI exactly
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 0) {
-                            // Main page title
+                    // Handle bar
+                    RoundedRectangle(cornerRadius: 2.5)
+                        .fill(Color(.systemGray4))
+                        .frame(width: DashboardConstants.handleWidth, height: DashboardConstants.handleHeight)
+                        .padding(.top, 10)
+                        .padding(.bottom, 12)
+                    
+                    // Header
+                    HStack {
+                        HStack(spacing: 4) {
                             Text("Nearby Facilities")
-                                .font(.largeTitle)
-                                .fontWeight(.bold)
-                                .padding(.horizontal, 16)
-                                .padding(.bottom, 20)
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(.primary)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.primary)
+                                .rotationEffect(.degrees(sheetState == .expanded ? 180 : 0))
+                                .animation(.easeInOut(duration: 0.2), value: sheetState)
+                        }
+                        
+                        Spacer()
+                        
+                        HStack(spacing: 12) {
+                            Button {
+                                // Share action
+                            } label: {
+                                Image(systemName: "square.and.arrow.up")
+                                    .foregroundColor(.primary)
+                                    .font(.system(size: 16, weight: .medium))
+                            }
                             
-                            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                                // Emergency Departments Section
-                                facilitySection(
-                                    title: "Emergency Departments", 
-                                    facilities: emergencyDepartments
+                            // Profile avatar
+                            Circle()
+                                .fill(DashboardConstants.primaryBlue)
+                                .frame(width: 32, height: 32)
+                                .overlay(
+                                    Text("P")
+                                        .foregroundColor(.white)
+                                        .font(.system(size: 14, weight: .semibold))
+                                )
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
+                    
+                    // Search Bar (only show when expanded)
+                    if sheetState == .expanded {
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 14))
+                            Text("Search to add facilities")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 16))
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 16)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                    
+                    // Facility List - fills remaining space to bottom
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(visibleFacilities.indices, id: \.self) { index in
+                                let facility = visibleFacilities[index]
+                                
+                                FacilityCard(
+                                    facility: facility,
+                                    isFirstCard: index == 0,
+                                    sheetState: sheetState
                                 )
                                 
-                                // Urgent Care Section  
-                                facilitySection(
-                                    title: "Urgent Cares",
-                                    facilities: urgentCareFacilities
-                                )
+                                if index < visibleFacilities.count - 1 && sheetState != .peek {
+                                    Divider()
+                                        .padding(.leading, 80)
+                                        .opacity(sheetState == .expanded ? 1.0 : 0.5)
+                                }
                             }
                         }
+                        .padding(.bottom, 20)
                     }
-                    .refreshable {
-                        viewModel.refreshWaitTimes()
-                    }
-                }
-                .navigationTitle("STL WaitLine")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button {
-                            // Hamburger menu
-                        } label: {
-                            Image(systemName: "line.3.horizontal")
-                                .foregroundColor(.primary)
-                        }
-                    }
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        HStack(spacing: 16) {
-                            Button {
-                                // Add facility
-                            } label: {
-                                Image(systemName: "plus")
-                                    .foregroundColor(.primary)
-                            }
-                            Button {
-                                // More options
-                            } label: {
-                                Image(systemName: "ellipsis")
-                                    .foregroundColor(.primary)
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Bottom Tab Navigation
-            CustomTabView(selectedTab: $selectedTab)
-        }
-    }
-    
-    // MARK: - Facility Section
-    private func facilitySection(title: String, facilities: [MockFacility]) -> some View {
-        Section {
-            ForEach(facilities) { facility in
-                NavigationLink(destination: EmptyView()) {
-                    WatchlistRow(facility: facility)
-                        .padding(.horizontal, 16)
-                }
-                .buttonStyle(PlainButtonStyle())
-                
-                if facility.id != facilities.last?.id {
-                    Divider()
-                        .padding(.leading, 82)
-                }
-            }
-        } header: {
-            HStack {
-                Text(title)
-                    .font(.title3)
-                    .fontWeight(.medium)
-                    .foregroundColor(.secondary)
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 8)
-            .background(Color(.systemBackground))
-        }
-    }
-    
-    // MARK: - Mock Data
-    private var emergencyDepartments: [MockFacility] {
-        [
-            MockFacility(id: "1", iconText: "plus", iconColor: .red, name: "Mercy Hospital", subtitle: "2.1 miles away", value: "3h 45m", change: "+15 min", changeColor: .green),
-            MockFacility(id: "2", iconText: "plus", iconColor: .blue, name: "St. Luke's Hospital", subtitle: "4.5 miles away", value: "4h 15m", change: "+5 min", changeColor: .green),
-            MockFacility(id: "3", iconText: "plus", iconColor: .blue, name: "Barnes-Jewish Hospital", subtitle: "6.2 miles away", value: "5h 30m", change: "-20 min", changeColor: .red)
-        ]
-    }
-    
-    private var urgentCareFacilities: [MockFacility] {
-        [
-            MockFacility(id: "4", iconText: "bandage", iconColor: .green, name: "Total Access Urgent Care", subtitle: "1.8 miles away", value: "45m", change: "+5 min", changeColor: .green),
-            MockFacility(id: "5", iconText: "bandage", iconColor: .red, name: "Concentra Urgent Care", subtitle: "3.2 miles away", value: "1h 10m", change: "-10 min", changeColor: .red),
-            MockFacility(id: "6", iconText: "bandage", iconColor: Color(red: 0.2, green: 0.2, blue: 0.2), name: "Ortho Urgent Care", subtitle: "5.1 miles away", value: "25m", change: "+2 min", changeColor: .green)
-        ]
-    }
-}
-
-// MARK: - Mock Data Model
-struct MockFacility: Identifiable {
-    let id: String
-    let iconText: String
-    let iconColor: Color
-    let name: String
-    let subtitle: String
-    let value: String
-    let change: String
-    let changeColor: Color
-}
-
-// MARK: - Watchlist Row (Exact Match to Desired UI)
-struct WatchlistRow: View {
-    let facility: MockFacility
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            // Icon (medical icons)
-            ZStack {
-                Circle()
-                    .fill(facility.iconColor)
-                    .frame(width: 50, height: 50)
-                
-                Image(systemName: facility.iconText)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            
-            // Title and subtitle
-            VStack(alignment: .leading, spacing: 4) {
-                Text(facility.name)
-                    .font(.body)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-                
-                Text(facility.subtitle)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            // Value and change (matches desired layout exactly)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(facility.value)
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-                
-                Text(facility.change)
-                    .font(.subheadline)
-                    .foregroundColor(facility.changeColor)
-                    .fontWeight(.medium)
-            }
-        }
-        .padding(.vertical, 8)
-    }
-}
-
-// MARK: - Dashboard Facility Row
-struct DashboardFacilityRow: View {
-    let facility: Facility
-    @ObservedObject var viewModel: FacilityListViewModel
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            // Left: Facility Icon
-            facilityIcon
-            
-            // Center: Facility Info
-            VStack(alignment: .leading, spacing: 4) {
-                Text(facilityNameDisplay)
-                    .font(.body)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-                
-                Text(facilitySubtitle)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            // Right: Wait Time & Distance
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(waitTimeDisplay)
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-                
-                HStack(spacing: 4) {
-                    Text(distanceDisplay)
-                        .font(.subheadline)
-                        .foregroundColor(waitTimeChangeColor)
-                        .fontWeight(.medium)
+                    .clipped()
                     
-                    if !waitTimeChangeText.isEmpty {
-                        Text(waitTimeChangeText)
-                            .font(.subheadline)
-                            .foregroundColor(waitTimeChangeColor)
-                            .fontWeight(.medium)
-                    }
+                    // Fill remaining space to ensure sheet extends to bottom
+                    Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(
+                    Color(.systemBackground)
+                        .opacity(0.98)
+                )
+                .cornerRadius(DashboardConstants.cornerRadius, corners: [.topLeft, .topRight])
+                .shadow(color: .black.opacity(sheetState == .expanded ? DashboardConstants.mapOpacity : 0.1), radius: 10, x: 0, y: -5)
+                .offset(y: sheetOffsetY(for: geometry))
+                .offset(dragAmount)
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            dragAmount = value.translation
+                            
+                            // Haptic feedback during drag
+                            if abs(value.translation.height) > 20 {
+                                let impact = UIImpactFeedbackGenerator(style: .light)
+                                impact.impactOccurred()
+                            }
+                        }
+                        .onEnded { value in
+                            let threshold: CGFloat = DashboardConstants.dragThreshold
+                            
+                            withAnimation(.spring(response: DashboardConstants.springResponse, dampingFraction: DashboardConstants.springDamping)) {
+                                if value.translation.height < -threshold {
+                                    // Drag up - move to next state
+                                    switch sheetState {
+                                    case .peek:
+                                        sheetState = .medium
+                                    case .medium:
+                                        sheetState = .expanded
+                                    case .expanded:
+                                        break // Already at max
+                                    }
+                                } else if value.translation.height > threshold {
+                                    // Drag down - move to previous state
+                                    switch sheetState {
+                                    case .expanded:
+                                        sheetState = .medium
+                                    case .medium:
+                                        sheetState = .peek
+                                    case .peek:
+                                        break // Already at min
+                                    }
+                                }
+                                
+                                dragAmount = .zero
+                            }
+                            
+                            // State change haptic feedback
+                            let impact = UIImpactFeedbackGenerator(style: .medium)
+                            impact.impactOccurred()
+                        }
+                )
+                .animation(.spring(response: DashboardConstants.springResponse, dampingFraction: DashboardConstants.springDamping), value: sheetState)
             }
         }
     }
     
     // MARK: - Computed Properties
-    private var facilityIcon: some View {
-        ZStack {
-            Circle()
-                .fill(iconBackgroundColor)
-                .frame(width: 50, height: 50)
+    private var visibleFacilities: [MedicalFacility] {
+        switch sheetState {
+        case .peek:
+            return Array(facilityData.prefix(2)) // Show first facility full + peek of second
+        case .medium:
+            return Array(facilityData.prefix(3)) // Show first three facilities
+        case .expanded:
+            return facilityData // Show all facilities
+        }
+    }
+    
+    private func sheetOffsetY(for geometry: GeometryProxy) -> CGFloat {
+        switch sheetState {
+        case .peek:
+            return geometry.size.height * DashboardConstants.peekOffset
+        case .medium:
+            return geometry.size.height * DashboardConstants.mediumOffset
+        case .expanded:
+            return geometry.size.height * DashboardConstants.expandedOffset
+        }
+    }
+    
+    // MARK: - Map Annotations
+    private var mapAnnotations: [FacilityMapAnnotation] {
+        [
+            FacilityMapAnnotation(id: "1", coordinate: CLLocationCoordinate2D(latitude: 38.6270, longitude: -90.1994), color: DashboardConstants.waitTimeRed),
+            FacilityMapAnnotation(id: "2", coordinate: CLLocationCoordinate2D(latitude: 38.6470, longitude: -90.2394), color: DashboardConstants.waitTimeOrange),
+            FacilityMapAnnotation(id: "3", coordinate: CLLocationCoordinate2D(latitude: 38.6070, longitude: -90.1594), color: DashboardConstants.waitTimeGreen)
+        ]
+    }
+    
+    // MARK: - Medical Facility Data
+    private var facilityData: [MedicalFacility] {
+        [
+            MedicalFacility(
+                id: "1",
+                name: "Barnes-Jewish Hospital",
+                type: "ER",
+                waitTime: "45",
+                waitDetails: "MINUTES",
+                distance: "2.3 mi",
+                waitChange: "+5 min",
+                status: "Open",
+                isOpen: true
+            ),
+            MedicalFacility(
+                id: "2",
+                name: "Saint Louis University",
+                type: "ER",
+                waitTime: "32",
+                waitDetails: "MINUTES",
+                distance: "1.8 mi",
+                waitChange: "-2 min",
+                status: "Open",
+                isOpen: true
+            ),
+            MedicalFacility(
+                id: "3",
+                name: "Mercy Hospital South",
+                type: "ER",
+                waitTime: "18",
+                waitDetails: "MINUTES",
+                distance: "3.1 mi",
+                waitChange: "Same",
+                status: "Open",
+                isOpen: true
+            )
+        ]
+    }
+}
+
+// MARK: - Models
+struct FacilityMapAnnotation: Identifiable {
+    let id: String
+    let coordinate: CLLocationCoordinate2D
+    let color: Color
+}
+
+struct MedicalFacility: Identifiable {
+    let id: String
+    let name: String
+    let type: String
+    let waitTime: String
+    let waitDetails: String
+    let distance: String
+    let waitChange: String
+    let status: String
+    let isOpen: Bool
+}
+
+// MARK: - Facility Card
+struct FacilityCard: View {
+    let facility: MedicalFacility
+    let isFirstCard: Bool
+    let sheetState: BottomSheetState
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            // Left: Large wait time
+            VStack(alignment: .leading, spacing: 2) {
+                Text(facility.waitTime)
+                    .font(.system(size: 46, weight: .bold, design: .default))
+                    .foregroundColor(waitTimeColor)
+                
+                Text(facility.waitDetails)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                    .kerning(0.5)
+            }
+            .frame(width: 80, alignment: .leading)
             
-            Text(iconText)
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(.white)
-        }
-    }
-    
-    private var facilityNameDisplay: String {
-        let words = facility.name.split(separator: " ")
-        if words.count > 3 {
-            return words.prefix(3).joined(separator: " ")
-        }
-        return facility.name
-    }
-    
-    private var facilitySubtitle: String {
-        return facility.facilityType.displayName
-    }
-    
-    private var waitTimeDisplay: String {
-        guard let waitTime = viewModel.waitTime(for: facility) else {
-            if let cmsWait = facility.cmsAverageWaitMinutes {
-                return "\(cmsWait) min"
+            // Center: Facility info
+            VStack(alignment: .leading, spacing: 6) {
+                Text(facility.type)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                    .kerning(0.4)
+                
+                Text(facility.name)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                
+                // Facility details (show when medium or expanded)
+                if sheetState == .medium || sheetState == .expanded {
+                    HStack(spacing: 18) {
+                        // Distance
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(DashboardConstants.primaryBlue)
+                                .frame(width: 8, height: 8)
+                            
+                            Text(facility.distance)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(DashboardConstants.primaryBlue)
+                        }
+                        
+                        // Wait change
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(waitChangeColor)
+                                .frame(width: 8, height: 8)
+                            
+                            Text(facility.waitChange)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(waitChangeColor)
+                        }
+                    }
+                    .padding(.top, 4)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .animation(.easeInOut(duration: 0.2), value: sheetState)
+                }
             }
-            return "No data"
+            
+            Spacer()
+            
+            // Right: Status
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("Status")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+                    .kerning(0.2)
+                
+                Text(facility.status)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(facility.isOpen ? .green : .red)
+            }
         }
-        
-        return waitTime.displayText
+        .padding(.horizontal, 20)
+        .padding(.vertical, cardPadding)
+        .opacity(cardOpacity)
+        .frame(height: cardHeight)
+        .clipped()
+        .animation(.easeInOut(duration: 0.25), value: sheetState)
     }
     
-    private var distanceDisplay: String {
-        return viewModel.formattedDistance(to: facility) ?? "Unknown"
-    }
-    
-    private var waitTimeChangeText: String {
-        // For now, show wait time trend indicator
-        if let waitTime = viewModel.waitTime(for: facility) {
-            return waitTime.isStale ? "stale" : "live"
-        }
-        return "avg"
-    }
-    
-    private var waitTimeChangeColor: Color {
-        guard let waitTime = viewModel.waitTime(for: facility) else {
-            return .secondary
-        }
-        
-        // Color coding based on wait time length
-        if waitTime.waitMinutes <= 15 {
-            return .green
-        } else if waitTime.waitMinutes <= 45 {
-            return .orange
+    // MARK: - Color Logic
+    private var waitTimeColor: Color {
+        let waitMinutes = Int(facility.waitTime) ?? 0
+        if waitMinutes <= 20 {
+            return DashboardConstants.waitTimeGreen
+        } else if waitMinutes <= 40 {
+            return DashboardConstants.waitTimeOrange
         } else {
-            return .red
+            return DashboardConstants.waitTimeRed
         }
     }
     
-    private var iconBackgroundColor: Color {
-        switch facility.facilityType {
-        case .emergencyDepartment:
-            return Color.red
-        case .urgentCare:
-            // Vary colors by facility ID for visual variety like the original
-            let hash = abs(facility.id.hashValue)
-            let colors: [Color] = [.blue, .green, .purple, .orange, .cyan, .mint]
-            return colors[hash % colors.count]
+    private var waitChangeColor: Color {
+        if facility.waitChange.contains("+") {
+            return DashboardConstants.waitTimeRed
+        } else if facility.waitChange.contains("-") {
+            return DashboardConstants.waitTimeGreen
+        } else {
+            return DashboardConstants.systemGray
         }
     }
     
-    private var iconText: String {
-        switch facility.facilityType {
-        case .emergencyDepartment:
-            return "ED"
-        case .urgentCare:
-            return "UC"
+    // MARK: - Card Display Logic
+    private var cardPadding: CGFloat {
+        switch sheetState {
+        case .peek:
+            return isFirstCard ? DashboardConstants.cardSpacing : 4  // Second card has minimal padding
+        case .medium, .expanded:
+            return DashboardConstants.cardSpacing
+        }
+    }
+    
+    private var cardOpacity: Double {
+        switch sheetState {
+        case .peek:
+            return isFirstCard ? 1 : 0.3  // Second card is partially visible
+        case .medium, .expanded:
+            return 1
+        }
+    }
+    
+    private var cardHeight: CGFloat? {
+        switch sheetState {
+        case .peek:
+            return isFirstCard ? nil : 25  // Second card shows just a peek
+        case .medium, .expanded:
+            return nil
         }
     }
 }
 
-// MARK: - Custom Tab View
-struct CustomTabView: View {
-    @Binding var selectedTab: Int
-    
-    var body: some View {
-        HStack {
-            TabButton(title: "Watchlist", iconName: "star.fill", isSelected: selectedTab == 0) {
-                selectedTab = 0
-            }
-            TabButton(title: "Chart", iconName: "chart.bar.fill", isSelected: selectedTab == 1) {
-                selectedTab = 1
-            }
-            TabButton(title: "Explore", iconName: "safari.fill", isSelected: selectedTab == 2) {
-                selectedTab = 2
-            }
-            TabButton(title: "Ideas", iconName: "lightbulb.fill", isSelected: selectedTab == 3) {
-                selectedTab = 3
-            }
-            TabButton(title: "Menu", iconName: "line.3.horizontal", isSelected: selectedTab == 4) {
-                selectedTab = 4
-            }
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(Color(.systemBackground))
-        .overlay(
-            Rectangle()
-                .frame(height: 0.5)
-                .foregroundColor(Color(.systemGray4)),
-            alignment: .top
+// MARK: - Corner Radius Extension
+extension View {
+    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
+        clipShape(RoundedCorner(radius: radius, corners: corners))
+    }
+}
+
+struct RoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
         )
-    }
-}
-
-struct TabButton: View {
-    let title: String
-    let iconName: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: iconName)
-                    .font(.system(size: 20))
-                Text(title)
-                    .font(.caption2)
-            }
-            .foregroundColor(isSelected ? .blue : .gray)
-        }
-        .frame(maxWidth: .infinity)
+        return Path(path.cgPath)
     }
 }
 
