@@ -20,7 +20,7 @@ enum BottomSheetState: CaseIterable {
 private enum DashboardConstants {
     // Bottom sheet offset percentages (matches Flighty app proportions)
     static let peekOffset: CGFloat = 0.72      // Shows ~28% of screen
-    static let mediumOffset: CGFloat = 0.32    // Shows ~68% of screen  
+    static let mediumOffset: CGFloat = 0.43    // Shows exactly 57% of screen  
     static let expandedOffset: CGFloat = 0.06  // Shows ~94% of screen
     
     // UI spacing and sizing
@@ -68,14 +68,23 @@ struct DashboardView: View {
                 
                 // Bottom Sheet - always extends to bottom
                 VStack(spacing: 0) {
-                    // Handle bar
+                    // Handle bar - draggable area
                     RoundedRectangle(cornerRadius: 2.5)
                         .fill(Color(.systemGray4))
                         .frame(width: DashboardConstants.handleWidth, height: DashboardConstants.handleHeight)
                         .padding(.top, 10)
                         .padding(.bottom, 12)
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    dragAmount = CGSize(width: 0, height: value.translation.height)
+                                }
+                                .onEnded { value in
+                                    handleSheetDragEnd(value: value)
+                                }
+                        )
                     
-                    // Header
+                    // Header - draggable area
                     HStack {
                         HStack(spacing: 4) {
                             Text("Nearby Facilities")
@@ -112,6 +121,15 @@ struct DashboardView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 16)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                dragAmount = CGSize(width: 0, height: value.translation.height)
+                            }
+                            .onEnded { value in
+                                handleSheetDragEnd(value: value)
+                            }
+                    )
                     
                     // Search Bar (only show when expanded)
                     if sheetState == .expanded {
@@ -145,7 +163,7 @@ struct DashboardView: View {
                                     sheetState: sheetState
                                 )
                                 
-                                if index < visibleFacilities.count - 1 && sheetState != .peek {
+                                if index < visibleFacilities.count - 1 {
                                     Divider()
                                         .padding(.leading, 80)
                                         .opacity(sheetState == .expanded ? 1.0 : 0.5)
@@ -168,49 +186,6 @@ struct DashboardView: View {
                 .shadow(color: .black.opacity(sheetState == .expanded ? DashboardConstants.mapOpacity : 0.1), radius: 10, x: 0, y: -5)
                 .offset(y: sheetOffsetY(for: geometry))
                 .offset(dragAmount)
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            // Restrict to vertical movement only
-                            dragAmount = CGSize(width: 0, height: value.translation.height)
-                        }
-                        .onEnded { value in
-                            let threshold: CGFloat = DashboardConstants.dragThreshold
-                            let previousState = sheetState
-                            
-                            withAnimation(.spring(response: DashboardConstants.springResponse, dampingFraction: DashboardConstants.springDamping)) {
-                                if value.translation.height < -threshold {
-                                    // Drag up - move to next state
-                                    switch sheetState {
-                                    case .peek:
-                                        sheetState = .medium
-                                    case .medium:
-                                        sheetState = .expanded
-                                    case .expanded:
-                                        break // Already at max
-                                    }
-                                } else if value.translation.height > threshold {
-                                    // Drag down - move to previous state
-                                    switch sheetState {
-                                    case .expanded:
-                                        sheetState = .medium
-                                    case .medium:
-                                        sheetState = .peek
-                                    case .peek:
-                                        break // Already at min
-                                    }
-                                }
-                                
-                                dragAmount = .zero
-                            }
-                            
-                            // Only provide haptic feedback if state actually changed
-                            if previousState != sheetState {
-                                let impact = UIImpactFeedbackGenerator(style: .medium)
-                                impact.impactOccurred()
-                            }
-                        }
-                )
                 .animation(.spring(response: DashboardConstants.springResponse, dampingFraction: DashboardConstants.springDamping), value: sheetState)
             }
         }
@@ -220,9 +195,9 @@ struct DashboardView: View {
     private var visibleFacilities: [MedicalFacility] {
         switch sheetState {
         case .peek:
-            return Array(facilityData.prefix(2)) // Show first facility full + peek of second
+            return facilityData // Show all facilities (scrollable)
         case .medium:
-            return Array(facilityData.prefix(3)) // Show first three facilities
+            return facilityData // Show all facilities
         case .expanded:
             return facilityData // Show all facilities
         }
@@ -236,6 +211,43 @@ struct DashboardView: View {
             return geometry.size.height * DashboardConstants.mediumOffset
         case .expanded:
             return geometry.size.height * DashboardConstants.expandedOffset
+        }
+    }
+    
+    private func handleSheetDragEnd(value: DragGesture.Value) {
+        let threshold: CGFloat = DashboardConstants.dragThreshold
+        let previousState = sheetState
+        
+        withAnimation(.spring(response: DashboardConstants.springResponse, dampingFraction: DashboardConstants.springDamping)) {
+            if value.translation.height < -threshold {
+                // Drag up - move to next state
+                switch sheetState {
+                case .peek:
+                    sheetState = .medium
+                case .medium:
+                    sheetState = .expanded
+                case .expanded:
+                    break // Already at max
+                }
+            } else if value.translation.height > threshold {
+                // Drag down - move to previous state
+                switch sheetState {
+                case .expanded:
+                    sheetState = .medium
+                case .medium:
+                    sheetState = .peek
+                case .peek:
+                    break // Already at min
+                }
+            }
+            
+            dragAmount = .zero
+        }
+        
+        // Only provide haptic feedback if state actually changed
+        if previousState != sheetState {
+            let impact = UIImpactFeedbackGenerator(style: .medium)
+            impact.impactOccurred()
         }
     }
     
@@ -281,6 +293,28 @@ struct DashboardView: View {
                 waitDetails: "MINUTES",
                 distance: "3.1 mi",
                 waitChange: "Same",
+                status: "Open",
+                isOpen: true
+            ),
+            MedicalFacility(
+                id: "4",
+                name: "Christian Hospital",
+                type: "ER",
+                waitTime: "25",
+                waitDetails: "MINUTES",
+                distance: "4.2 mi",
+                waitChange: "+3 min",
+                status: "Open",
+                isOpen: true
+            ),
+            MedicalFacility(
+                id: "5",
+                name: "Missouri Baptist Medical Center",
+                type: "ER",
+                waitTime: "38",
+                waitDetails: "MINUTES",
+                distance: "5.8 mi",
+                waitChange: "-1 min",
                 status: "Open",
                 isOpen: true
             )
@@ -342,35 +376,31 @@ struct FacilityCard: View {
                     .foregroundColor(.primary)
                     .lineLimit(1)
                 
-                // Facility details (show when medium or expanded)
-                if sheetState == .medium || sheetState == .expanded {
-                    HStack(spacing: 18) {
-                        // Distance
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(DashboardConstants.primaryBlue)
-                                .frame(width: 8, height: 8)
-                            
-                            Text(facility.distance)
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(DashboardConstants.primaryBlue)
-                        }
+                // Facility details (show in all states)
+                HStack(spacing: 18) {
+                    // Distance
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(DashboardConstants.primaryBlue)
+                            .frame(width: 8, height: 8)
                         
-                        // Wait change
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(waitChangeColor)
-                                .frame(width: 8, height: 8)
-                            
-                            Text(facility.waitChange)
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(waitChangeColor)
-                        }
+                        Text(facility.distance)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(DashboardConstants.primaryBlue)
                     }
-                    .padding(.top, 4)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                    .animation(.easeInOut(duration: 0.2), value: sheetState)
+                    
+                    // Wait change
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(waitChangeColor)
+                            .frame(width: 8, height: 8)
+                        
+                        Text(facility.waitChange)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(waitChangeColor)
+                    }
                 }
+                .padding(.top, 4)
             }
             
             Spacer()
@@ -422,7 +452,7 @@ struct FacilityCard: View {
     private var cardPadding: CGFloat {
         switch sheetState {
         case .peek:
-            return isFirstCard ? DashboardConstants.cardSpacing : 8  // Second card has better spacing
+            return DashboardConstants.cardSpacing  // Consistent spacing for all cards
         case .medium, .expanded:
             return DashboardConstants.cardSpacing
         }
@@ -431,7 +461,7 @@ struct FacilityCard: View {
     private var cardOpacity: Double {
         switch sheetState {
         case .peek:
-            return isFirstCard ? 1 : 0.6  // Second card has better visibility
+            return 1  // All cards fully visible for scrolling
         case .medium, .expanded:
             return 1
         }
@@ -440,7 +470,7 @@ struct FacilityCard: View {
     private var cardHeight: CGFloat? {
         switch sheetState {
         case .peek:
-            return isFirstCard ? nil : 45  // Second card shows a more elegant peek
+            return nil  // Full height for all cards to enable proper scrolling
         case .medium, .expanded:
             return nil
         }
