@@ -171,16 +171,12 @@ struct DashboardView: View {
                 .gesture(
                     DragGesture()
                         .onChanged { value in
-                            dragAmount = value.translation
-                            
-                            // Haptic feedback during drag
-                            if abs(value.translation.height) > 20 {
-                                let impact = UIImpactFeedbackGenerator(style: .light)
-                                impact.impactOccurred()
-                            }
+                            // Restrict to vertical movement only
+                            dragAmount = CGSize(width: 0, height: value.translation.height)
                         }
                         .onEnded { value in
                             let threshold: CGFloat = DashboardConstants.dragThreshold
+                            let previousState = sheetState
                             
                             withAnimation(.spring(response: DashboardConstants.springResponse, dampingFraction: DashboardConstants.springDamping)) {
                                 if value.translation.height < -threshold {
@@ -208,9 +204,11 @@ struct DashboardView: View {
                                 dragAmount = .zero
                             }
                             
-                            // State change haptic feedback
-                            let impact = UIImpactFeedbackGenerator(style: .medium)
-                            impact.impactOccurred()
+                            // Only provide haptic feedback if state actually changed
+                            if previousState != sheetState {
+                                let impact = UIImpactFeedbackGenerator(style: .medium)
+                                impact.impactOccurred()
+                            }
                         }
                 )
                 .animation(.spring(response: DashboardConstants.springResponse, dampingFraction: DashboardConstants.springDamping), value: sheetState)
@@ -317,19 +315,19 @@ struct FacilityCard: View {
     
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
-            // Left: Large wait time
-            VStack(alignment: .leading, spacing: 2) {
+            // Left: Wait time with centered alignment
+            VStack(alignment: .center, spacing: 4) {
                 Text(facility.waitTime)
-                    .font(.system(size: 46, weight: .bold, design: .default))
+                    .font(.system(size: 36, weight: .bold, design: .default))
                     .foregroundColor(waitTimeColor)
                 
                 Text(facility.waitDetails)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 9, weight: .medium))
                     .foregroundColor(.secondary)
                     .textCase(.uppercase)
-                    .kerning(0.5)
+                    .kerning(0.4)
             }
-            .frame(width: 80, alignment: .leading)
+            .frame(width: 80, alignment: .center)
             
             // Center: Facility info
             VStack(alignment: .leading, spacing: 6) {
@@ -424,7 +422,7 @@ struct FacilityCard: View {
     private var cardPadding: CGFloat {
         switch sheetState {
         case .peek:
-            return isFirstCard ? DashboardConstants.cardSpacing : 4  // Second card has minimal padding
+            return isFirstCard ? DashboardConstants.cardSpacing : 8  // Second card has better spacing
         case .medium, .expanded:
             return DashboardConstants.cardSpacing
         }
@@ -433,7 +431,7 @@ struct FacilityCard: View {
     private var cardOpacity: Double {
         switch sheetState {
         case .peek:
-            return isFirstCard ? 1 : 0.3  // Second card is partially visible
+            return isFirstCard ? 1 : 0.6  // Second card has better visibility
         case .medium, .expanded:
             return 1
         }
@@ -442,7 +440,7 @@ struct FacilityCard: View {
     private var cardHeight: CGFloat? {
         switch sheetState {
         case .peek:
-            return isFirstCard ? nil : 25  // Second card shows just a peek
+            return isFirstCard ? nil : 45  // Second card shows a more elegant peek
         case .medium, .expanded:
             return nil
         }
