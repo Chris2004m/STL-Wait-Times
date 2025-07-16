@@ -450,12 +450,26 @@ enum MapDisplayMode: String, CaseIterable, Identifiable {
     }
 }
 
-/// **RenderQuality**: Performance optimization levels for 3D rendering
-enum RenderQuality: String, CaseIterable {
-    case low = "low"
-    case medium = "medium"
-    case high = "high"
-    case auto = "auto"
+// MARK: - Extensions for MapDisplayMode
+
+/// Extensions for MapDisplayMode
+extension MapDisplayMode {
+    var mapKitEquivalent: MKMapType {
+        switch self {
+        case .flat2D, .buildings3D, .terrain3D, .full3D:
+            return .standard
+        case .hybrid2D:
+            return .hybrid
+        }
+    }
+}
+
+/// Render quality options
+enum RenderQuality {
+    case low
+    case medium
+    case high
+    case auto
     
     /// Recommended frame rate target
     var targetFrameRate: Double {
@@ -468,59 +482,40 @@ enum RenderQuality: String, CaseIterable {
     }
 }
 
-/// **MedicalFacility3DAnnotation**: Enhanced annotation for medical facilities with 3D capabilities
-struct MedicalFacility3DAnnotation: Identifiable, Equatable {
-    let id: String
-    let coordinate: CLLocationCoordinate2D
-    let name: String
-    let facilityType: FacilityType
-    let waitTime: Int?
-    let waitTimeChange: String?
-    let distance: String?
-    let isOpen: Bool
-    
-    /// 3D visualization properties
-    let buildingHeight: Double
-    let priorityLevel: PriorityLevel
-    let customIcon: String?
-    
-    /// Facility type categorization
-    enum FacilityType {
-        case emergencyDepartment
-        case urgentCare
-        case hospital
-        
-        var color: Color {
-            switch self {
-            case .emergencyDepartment: return .red
-            case .urgentCare: return .orange
-            case .hospital: return .blue
-            }
-        }
-        
-        var icon: String {
-            switch self {
-            case .emergencyDepartment: return "cross.circle.fill"
-            case .urgentCare: return "stethoscope.circle.fill"
-            case .hospital: return "building.2.crop.circle.fill"
-            }
+// Using MedicalFacility3DAnnotation from MapboxTypes.swift
+
+/// Extension to add display properties for MapboxView3D
+extension MedicalFacility3DAnnotation.FacilityType {
+    var color: Color {
+        switch self {
+        case .emergencyDepartment: return .red
+        case .urgentCare: return .orange
+        case .hospital: return .blue
+        case .clinic: return .green
+        case .pharmacy: return .purple
         }
     }
     
-    /// Priority level for visual emphasis
-    enum PriorityLevel: Int {
-        case low = 1
-        case medium = 2
-        case high = 3
-        case critical = 4
-        
-        var scale: Double {
-            return 0.8 + (0.1 * Double(rawValue))
+    var icon: String {
+        switch self {
+        case .emergencyDepartment: return "cross.circle.fill"
+        case .urgentCare: return "stethoscope.circle.fill"
+        case .hospital: return "building.2.crop.circle.fill"
+        case .clinic: return "heart.circle.fill"
+        case .pharmacy: return "pills.circle.fill"
         }
     }
-    
-    static func == (lhs: MedicalFacility3DAnnotation, rhs: MedicalFacility3DAnnotation) -> Bool {
-        lhs.id == rhs.id
+}
+
+/// Extension to add display properties for MapboxView3D
+extension MedicalFacility3DAnnotation.PriorityLevel {
+    var scale: Double {
+        switch self {
+        case .low: return 0.8
+        case .medium: return 0.9
+        case .high: return 1.0
+        case .critical: return 1.2
+        }
     }
 }
 

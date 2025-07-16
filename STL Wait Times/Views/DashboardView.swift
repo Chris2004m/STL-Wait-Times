@@ -54,7 +54,6 @@ struct DashboardView: View {
     )
     
     @State private var sheetState: BottomSheetState = .peek
-    @State private var dragAmount = CGSize.zero
     
     // MARK: - 3D Map Properties
     @State private var mapMode: MapDisplayMode = .hybrid2D
@@ -64,146 +63,124 @@ struct DashboardView: View {
     private let dataConverter = MapboxDataConverter()
     
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                // Background Map - Enhanced 3D Mapbox View
-                MapboxView3D(
-                    coordinateRegion: $region,
-                    annotations: mapbox3DAnnotations,
-                    mapMode: mapMode,
-                    onMapTap: { coordinate in
-                        handleMapTap(at: coordinate)
-                    },
-                    onAnnotationTap: { annotation in
-                        handleFacilitySelection(annotation)
-                    }
-                )
-                .ignoresSafeArea()
-                .opacity(sheetState == .expanded ? DashboardConstants.mapOpacity : 1.0)
-                .animation(.easeInOut(duration: 0.3), value: sheetState)
-                
-                // Bottom Sheet - always extends to bottom
-                VStack(spacing: 0) {
-                    // Handle bar - draggable area
-                    RoundedRectangle(cornerRadius: 2.5)
-                        .fill(Color(.systemGray4))
-                        .frame(width: DashboardConstants.handleWidth, height: DashboardConstants.handleHeight)
-                        .padding(.top, 10)
-                        .padding(.bottom, 12)
-                        .gesture(
-                            DragGesture()
-                                .onChanged { value in
-                                    dragAmount = CGSize(width: 0, height: value.translation.height)
-                                }
-                                .onEnded { value in
-                                    handleSheetDragEnd(value: value)
-                                }
-                        )
-                    
-                    // Header - draggable area
-                    HStack {
-                        HStack(spacing: 4) {
-                            Text("Nearby Facilities")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.primary)
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.primary)
-                                .rotationEffect(.degrees(sheetState == .expanded ? 180 : 0))
-                                .animation(.easeInOut(duration: 0.2), value: sheetState)
-                        }
-                        
-                        Spacer()
-                        
-                        HStack(spacing: 12) {
-                            Button {
-                                // Share action
-                            } label: {
-                                Image(systemName: "square.and.arrow.up")
-                                    .foregroundColor(.primary)
-                                    .font(.system(size: 16, weight: .medium))
-                            }
-                            
-                            // Profile avatar
-                            Circle()
-                                .fill(DashboardConstants.primaryBlue)
-                                .frame(width: 32, height: 32)
-                                .overlay(
-                                    Text("P")
-                                        .foregroundColor(.white)
-                                        .font(.system(size: 14, weight: .semibold))
-                                )
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 16)
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                dragAmount = CGSize(width: 0, height: value.translation.height)
-                            }
-                            .onEnded { value in
-                                handleSheetDragEnd(value: value)
-                            }
-                    )
-                    
-                    // Search Bar (only show when expanded)
-                    if sheetState == .expanded {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(.secondary)
-                                .font(.system(size: 14))
-                            Text("Search to add facilities")
-                                .foregroundColor(.secondary)
-                                .font(.system(size: 16))
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(12)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 16)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                    
-                    // Facility List - fills remaining space to bottom
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(visibleFacilities.indices, id: \.self) { index in
-                                let facility = visibleFacilities[index]
-                                
-                                FacilityCard(
-                                    facility: facility,
-                                    isFirstCard: index == 0,
-                                    sheetState: sheetState
-                                )
-                                
-                                if index < visibleFacilities.count - 1 {
-                                    Divider()
-                                        .padding(.leading, 80)
-                                        .opacity(sheetState == .expanded ? 1.0 : 0.5)
-                                }
-                            }
-                        }
-                        .padding(.bottom, 20)
-                    }
-                    .clipped()
-                    
-                    // Fill remaining space to ensure sheet extends to bottom
-                    Spacer(minLength: 0)
+        ZStack {
+            // Background Map - Enhanced 3D Mapbox View
+            MapboxView3D(
+                coordinateRegion: $region,
+                annotations: mapbox3DAnnotations,
+                mapMode: mapMode,
+                onMapTap: { coordinate in
+                    handleMapTap(at: coordinate)
+                },
+                onAnnotationTap: { annotation in
+                    handleFacilitySelection(annotation)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(
-                    Color(.systemBackground)
-                        .opacity(0.98)
-                )
-                .cornerRadius(DashboardConstants.cornerRadius, corners: [.topLeft, .topRight])
-                .shadow(color: .black.opacity(sheetState == .expanded ? DashboardConstants.mapOpacity : 0.1), radius: 10, x: 0, y: -5)
-                .offset(y: sheetOffsetY(for: geometry))
-                .offset(dragAmount)
-                .animation(.spring(response: DashboardConstants.springResponse, dampingFraction: DashboardConstants.springDamping), value: sheetState)
+            )
+            .ignoresSafeArea()
+            .opacity(sheetState == .expanded ? DashboardConstants.mapOpacity : 1.0)
+            .animation(.easeInOut(duration: 0.3), value: sheetState)
+            
+            // Simple Reliable Bottom Sheet
+            SimpleBottomSheetView(
+                state: $sheetState,
+                configuration: SimpleSheetConfiguration(),
+                onStateChange: { newState in
+                    handleSheetStateChange(newState)
+                }
+            ) {
+                sheetContent
             }
+        }
+    }
+    
+    // MARK: - Sheet Content
+    
+    @ViewBuilder
+    private var sheetContent: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                HStack(spacing: 4) {
+                    Text("Nearby Facilities")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(.primary)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.primary)
+                        .rotationEffect(.degrees(sheetState == .expanded ? 180 : 0))
+                        .animation(.easeInOut(duration: 0.2), value: sheetState)
+                }
+                
+                Spacer()
+                
+                HStack(spacing: 12) {
+                    Button {
+                        // Share action
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .foregroundColor(.primary)
+                            .font(.system(size: 16, weight: .medium))
+                    }
+                    
+                    // Profile avatar
+                    Circle()
+                        .fill(DashboardConstants.primaryBlue)
+                        .frame(width: 32, height: 32)
+                        .overlay(
+                            Text("P")
+                                .foregroundColor(.white)
+                                .font(.system(size: 14, weight: .semibold))
+                        )
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
+            
+            // Search Bar (only show when expanded)
+            if sheetState == .expanded {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 14))
+                    Text("Search to add facilities")
+                        .foregroundColor(.secondary)
+                        .font(.system(size: 16))
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+            
+            // Facility List - fills remaining space to bottom
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(visibleFacilities.indices, id: \.self) { index in
+                        let facility = visibleFacilities[index]
+                        
+                        FacilityCard(
+                            facility: facility,
+                            isFirstCard: index == 0,
+                            sheetState: sheetState
+                        )
+                        
+                        if index < visibleFacilities.count - 1 {
+                            Divider()
+                                .padding(.leading, 80)
+                                .opacity(sheetState == .expanded ? 1.0 : 0.5)
+                        }
+                    }
+                }
+                .padding(.bottom, 20)
+            }
+            .clipped()
+            
+            // Fill remaining space to ensure sheet extends to bottom
+            Spacer(minLength: 0)
         }
     }
     
@@ -219,52 +196,10 @@ struct DashboardView: View {
         }
     }
     
-    private func sheetOffsetY(for geometry: GeometryProxy) -> CGFloat {
-        switch sheetState {
-        case .peek:
-            return geometry.size.height * DashboardConstants.peekOffset
-        case .medium:
-            return geometry.size.height * DashboardConstants.mediumOffset
-        case .expanded:
-            return geometry.size.height * DashboardConstants.expandedOffset
-        }
-    }
-    
-    private func handleSheetDragEnd(value: DragGesture.Value) {
-        let threshold: CGFloat = DashboardConstants.dragThreshold
-        let previousState = sheetState
-        
-        withAnimation(.spring(response: DashboardConstants.springResponse, dampingFraction: DashboardConstants.springDamping)) {
-            if value.translation.height < -threshold {
-                // Drag up - move to next state
-                switch sheetState {
-                case .peek:
-                    sheetState = .medium
-                case .medium:
-                    sheetState = .expanded
-                case .expanded:
-                    break // Already at max
-                }
-            } else if value.translation.height > threshold {
-                // Drag down - move to previous state
-                switch sheetState {
-                case .expanded:
-                    sheetState = .medium
-                case .medium:
-                    sheetState = .peek
-                case .peek:
-                    break // Already at min
-                }
-            }
-            
-            dragAmount = .zero
-        }
-        
-        // Only provide haptic feedback if state actually changed
-        if previousState != sheetState {
-            let impact = UIImpactFeedbackGenerator(style: .medium)
-            impact.impactOccurred()
-        }
+    /// Handle sheet state changes
+    private func handleSheetStateChange(_ newState: BottomSheetState) {
+        // Additional logic when sheet state changes
+        // This is handled by the UltimateBottomSheetView now
     }
     
     // MARK: - 3D Map Interaction Handlers
@@ -593,26 +528,7 @@ struct FacilityCard: View {
     }
 }
 
-// MARK: - Corner Radius Extension
-extension View {
-    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
-        clipShape(RoundedCorner(radius: radius, corners: corners))
-    }
-}
-
-struct RoundedCorner: Shape {
-    var radius: CGFloat = .infinity
-    var corners: UIRectCorner = .allCorners
-
-    func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(
-            roundedRect: rect,
-            byRoundingCorners: corners,
-            cornerRadii: CGSize(width: radius, height: radius)
-        )
-        return Path(path.cgPath)
-    }
-}
+// MARK: - Corner Radius Extension (Removed - now in SimpleBottomSheetView)
 
 // MARK: - Preview
 struct DashboardView_Previews: PreviewProvider {

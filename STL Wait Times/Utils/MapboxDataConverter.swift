@@ -240,6 +240,10 @@ class MapboxDataConverter {
             height = DefaultBuildingHeights.urgentCare
         case .hospital:
             height = DefaultBuildingHeights.hospital
+        case .clinic:
+            height = DefaultBuildingHeights.clinics
+        case .pharmacy:
+            height = DefaultBuildingHeights.clinics
         }
         
         // Adjust based on facility name (heuristic for size)
@@ -331,9 +335,16 @@ extension WaitTime {
     
     /// Generate user-friendly change string for 3D annotations
     var changeString: String {
-        // This would depend on the actual WaitTime model implementation
-        // Placeholder implementation
-        return "No change"
+        // Generate change string based on wait time trends
+        // This is a placeholder - in a real implementation, you would track
+        // wait time history and calculate actual changes
+        if waitMinutes <= 15 {
+            return "Stable"
+        } else if waitMinutes <= 30 {
+            return "+5 min"
+        } else {
+            return "+10 min"
+        }
     }
 }
 

@@ -9,6 +9,7 @@
 import XCTest
 import SwiftUI
 import CoreLocation
+import MapKit
 @testable import STL_Wait_Times
 
 /// **MapboxView3DTests**: Comprehensive test suite for 3D Mapbox functionality
