@@ -56,15 +56,31 @@ struct DashboardView: View {
     @State private var sheetState: BottomSheetState = .peek
     @State private var dragAmount = CGSize.zero
     
+    // MARK: - 3D Map Properties
+    @State private var mapMode: MapDisplayMode = .hybrid2D
+    @State private var selectedFacilityId: String? = nil
+    
+    // MARK: - Data Converter
+    private let dataConverter = MapboxDataConverter()
+    
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Background Map - always fills top portion
-                Map(coordinateRegion: $region)
-                    .mapStyle(.standard(elevation: .flat))
-                    .ignoresSafeArea()
-                    .opacity(sheetState == .expanded ? DashboardConstants.mapOpacity : 1.0)
-                    .animation(.easeInOut(duration: 0.3), value: sheetState)
+                // Background Map - Enhanced 3D Mapbox View
+                MapboxView3D(
+                    coordinateRegion: $region,
+                    annotations: mapbox3DAnnotations,
+                    mapMode: mapMode,
+                    onMapTap: { coordinate in
+                        handleMapTap(at: coordinate)
+                    },
+                    onAnnotationTap: { annotation in
+                        handleFacilitySelection(annotation)
+                    }
+                )
+                .ignoresSafeArea()
+                .opacity(sheetState == .expanded ? DashboardConstants.mapOpacity : 1.0)
+                .animation(.easeInOut(duration: 0.3), value: sheetState)
                 
                 // Bottom Sheet - always extends to bottom
                 VStack(spacing: 0) {
@@ -251,6 +267,50 @@ struct DashboardView: View {
         }
     }
     
+    // MARK: - 3D Map Interaction Handlers
+    
+    /// Handle map tap gestures for 3D map
+    /// - Parameter coordinate: The tapped coordinate on the map
+    private func handleMapTap(at coordinate: CLLocationCoordinate2D) {
+        // Handle map tap interactions
+        // Could be used for adding new facilities, getting info about location, etc.
+        print("Map tapped at: \(coordinate.latitude), \(coordinate.longitude)")
+        
+        // Clear any selected facility
+        selectedFacilityId = nil
+        
+        // Provide haptic feedback
+        let impact = UIImpactFeedbackGenerator(style: .light)
+        impact.impactOccurred()
+    }
+    
+    /// Handle facility annotation selection
+    /// - Parameter annotation: The selected 3D facility annotation
+    private func handleFacilitySelection(_ annotation: MedicalFacility3DAnnotation) {
+        // Update selected facility
+        selectedFacilityId = annotation.id
+        
+        // Animate to show facility details in bottom sheet
+        withAnimation(.spring(response: DashboardConstants.springResponse, dampingFraction: DashboardConstants.springDamping)) {
+            if sheetState == .peek {
+                sheetState = .medium
+            }
+        }
+        
+        // Announce selection for accessibility
+        let announcement = "Selected \(annotation.name)"
+        UIAccessibility.post(notification: .announcement, argument: announcement)
+        
+        // Provide haptic feedback
+        let impact = UIImpactFeedbackGenerator(style: .medium)
+        impact.impactOccurred()
+        
+        // TODO: Could trigger additional actions like:
+        // - Updating region to center on facility
+        // - Loading detailed facility information
+        // - Starting navigation
+    }
+    
     // MARK: - Map Annotations
     private var mapAnnotations: [FacilityMapAnnotation] {
         [
@@ -258,6 +318,62 @@ struct DashboardView: View {
             FacilityMapAnnotation(id: "2", coordinate: CLLocationCoordinate2D(latitude: 38.6470, longitude: -90.2394), color: DashboardConstants.waitTimeOrange),
             FacilityMapAnnotation(id: "3", coordinate: CLLocationCoordinate2D(latitude: 38.6070, longitude: -90.1594), color: DashboardConstants.waitTimeGreen)
         ]
+    }
+    
+    // MARK: - Mapbox Annotations
+    private var mapboxAnnotations: [CustomMapAnnotation] {
+        mapAnnotations.map { annotation in
+            CustomMapAnnotation(
+                id: annotation.id,
+                coordinate: annotation.coordinate,
+                color: UIColor(annotation.color),
+                title: nil,
+                subtitle: nil
+            )
+        }
+    }
+    
+    // MARK: - 3D Mapbox Annotations
+    /// Convert facility data to enhanced 3D annotations with wait times and priorities
+    private var mapbox3DAnnotations: [MedicalFacility3DAnnotation] {
+        // Convert current facility data to proper Facility models for 3D conversion
+        let facilities = facilityData.map { dashboardFacility -> Facility in
+            Facility(
+                id: dashboardFacility.id,
+                name: dashboardFacility.name,
+                address: "Address", // TODO: Add actual address data
+                city: "St. Louis",
+                state: "MO", 
+                zipCode: "63110",
+                phone: "555-0123",
+                facilityType: dashboardFacility.type == "ER" ? .emergencyDepartment : .urgentCare,
+                coordinate: CLLocationCoordinate2D(
+                    latitude: 38.6270, // Use facility coordinate when available
+                    longitude: -90.1994
+                )
+            )
+        }
+        
+        // Create wait times dictionary
+        let waitTimes: [String: WaitTime] = Dictionary(uniqueKeysWithValues: 
+            facilityData.compactMap { facility -> (String, WaitTime)? in
+                guard let waitMinutes = Int(facility.waitTime) else { return nil }
+                let waitTime = WaitTime(
+                    facilityId: facility.id,
+                    waitMinutes: waitMinutes,
+                    patientsInLine: 0, // Default value
+                    lastUpdated: Date(),
+                    nextAvailableSlot: 0 // Default value
+                )
+                return (facility.id, waitTime)
+            }
+        )
+        
+        return dataConverter.convertToMapbox3DAnnotations(
+            facilities: facilities,
+            waitTimes: waitTimes,
+            userLocation: nil // TODO: Get from LocationService
+        )
     }
     
     // MARK: - Medical Facility Data

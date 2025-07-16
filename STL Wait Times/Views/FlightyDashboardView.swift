@@ -19,7 +19,11 @@ struct FlightyDashboardView: View {
         GeometryReader { geometry in
             ZStack {
                 // Background Map
-                Map(coordinateRegion: $region)
+                MapboxView(
+                    coordinateRegion: $region,
+                    annotations: mapboxAnnotations,
+                    mapStyle: "standard"
+                )
                 .ignoresSafeArea()
                 .opacity(sheetState == .expanded ? 0.3 : 1.0)
                 .animation(.easeInOut(duration: 0.3), value: sheetState)
@@ -173,6 +177,19 @@ struct FlightyDashboardView: View {
             FlightyMapAnnotation(id: "2", coordinate: CLLocationCoordinate2D(latitude: 38.6470, longitude: -90.2394), color: .blue),
             FlightyMapAnnotation(id: "3", coordinate: CLLocationCoordinate2D(latitude: 38.6070, longitude: -90.1594), color: .green)
         ]
+    }
+    
+    // MARK: - Mapbox Annotations
+    private var mapboxAnnotations: [CustomMapAnnotation] {
+        annotations.map { annotation in
+            CustomMapAnnotation(
+                id: annotation.id,
+                coordinate: annotation.coordinate,
+                color: UIColor(annotation.color),
+                title: nil,
+                subtitle: nil
+            )
+        }
     }
     
     private var facilities: [FlightyData] {
