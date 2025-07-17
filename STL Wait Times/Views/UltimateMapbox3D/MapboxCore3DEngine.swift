@@ -214,11 +214,10 @@ class MapboxCore3DEngine: ObservableObject {
     
     // MARK: - Rendering Mode Detection
     
-    /// Check if Mapbox SDK is available (placeholder)
+    /// Check if Mapbox SDK is available
     var isMapboxSDKAvailable: Bool {
-        // In a real implementation, this would check for Mapbox SDK availability
-        // For now, we'll use MapKit fallback with 3D effects
-        return false
+        // Mapbox SDK is now available and integrated
+        return true
     }
     
     /// Determine optimal rendering mode based on device capabilities

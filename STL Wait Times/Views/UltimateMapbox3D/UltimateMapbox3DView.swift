@@ -8,10 +8,10 @@
 
 import SwiftUI
 import MapKit
+import MapboxMaps
 import CoreLocation
 import Combine
 import UIKit
-// import MapboxMaps // Enable when SDK added
 
 /// **UltimateMapbox3DView**: Enterprise-grade modular 3D mapping component
 ///
@@ -141,16 +141,18 @@ struct UltimateMapbox3DView: View {
     
     // MARK: - Map Rendering Layer
     
-    /// Core 3D map rendering with fallback support
+    /// Core 3D map rendering with Mapbox Standard Core style
     @ViewBuilder
     private var mapRenderingLayer: some View {
-        if renderingEngine.isMapboxSDKAvailable {
-            // Full Mapbox 3D Implementation
-            mapboxNativeView
-        } else {
-            // Enhanced MapKit Fallback with 3D simulation
-            mapKitFallbackWithEffects
-        }
+        // Use the new MapboxView with Standard Core style
+        MapboxView(
+            coordinateRegion: $cameraController.region,
+            annotations: mapKitAnnotations,
+            mapStyle: "standard",
+            onMapTap: { coordinate in
+                onLocationSelected?(coordinate)
+            }
+        )
     }
     
     /// Native Mapbox 3D view (when SDK available)
@@ -176,10 +178,8 @@ struct UltimateMapbox3DView: View {
                 annotationItems: mapKitAnnotations
             ) { annotation in
                 MapAnnotation(coordinate: annotation.coordinate) {
-                    Advanced3DAnnotationView(
+                    SimpleAnnotationView(
                         annotation: annotation,
-                        style: styleManager.currentStyle,
-                        renderingMode: renderingEngine.currentRenderingMode,
                         onTap: {
                             onLocationSelected?(annotation.coordinate)
                         }
@@ -223,10 +223,16 @@ struct UltimateMapbox3DView: View {
     }
     
     /// MapKit annotations converted from advanced annotations
-    private var mapKitAnnotations: [AdvancedMapAnnotation] {
-        return annotations.filter { annotation in
-            // Performance optimization: only show annotations in current viewport
-            true // Simplified for compilation
+    private var mapKitAnnotations: [CustomMapAnnotation] {
+        // Convert AdvancedMapAnnotation to CustomMapAnnotation for MapboxView
+        return annotations.compactMap { annotation in
+            CustomMapAnnotation(
+                id: annotation.id,
+                coordinate: annotation.coordinate,
+                color: getAnnotationColor(for: annotation),
+                title: annotation.title,
+                subtitle: annotation.subtitle
+            )
         }
     }
     
@@ -340,6 +346,63 @@ struct UltimateMapbox3DView: View {
         // Haptic feedback
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.impactOccurred()
+    }
+    
+    /// Get annotation color based on annotation type
+    private func getAnnotationColor(for annotation: AdvancedMapAnnotation) -> UIColor {
+        switch annotation.annotationType {
+        case .medicalFacility(let data):
+            switch data.priority {
+            case .critical:
+                return .systemRed
+            case .high:
+                return .systemOrange
+            case .medium:
+                return .systemYellow
+            case .low:
+                return .systemGreen
+            }
+        case .customLocation:
+            return .systemBlue
+        case .route:
+            return .systemPurple
+        case .area:
+            return .systemGray
+        case .poi:
+            return .systemTeal
+        }
+    }
+}
+
+// MARK: - Simple Annotation View
+
+/// Simple annotation view for CustomMapAnnotation
+struct SimpleAnnotationView: View {
+    let annotation: CustomMapAnnotation
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            VStack {
+                Image(systemName: "cross.circle.fill")
+                    .foregroundColor(Color(annotation.color))
+                    .font(.title2)
+                    .background(Color.white)
+                    .clipShape(Circle())
+                    .shadow(radius: 2)
+                
+                if let title = annotation.title {
+                    Text(title)
+                        .font(.caption)
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 8)
+                        .background(Color.white.opacity(0.8))
+                        .cornerRadius(4)
+                }
+            }
+        }
+        .accessibility(label: Text(annotation.title ?? "Medical facility"))
+        .accessibility(hint: Text(annotation.subtitle ?? "Tap for details"))
     }
 }
 

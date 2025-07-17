@@ -53,19 +53,19 @@ class MapboxDataConverter {
     
     // MARK: - Main Conversion Methods
     
-    /// Convert medical facilities to 3D Mapbox annotations
+    /// Convert medical facilities to Mapbox annotations
     /// - Parameters:
     ///   - facilities: Array of medical facilities from app data
     ///   - waitTimes: Current wait times dictionary
     ///   - userLocation: User's current location for distance calculation
     ///   - includeClosedFacilities: Whether to include closed facilities
-    /// - Returns: Array of 3D-enhanced annotations
-    func convertToMapbox3DAnnotations(
+    /// - Returns: Array of custom map annotations
+    func convertToMapboxAnnotations(
         facilities: [Facility],
         waitTimes: [String: WaitTime] = [:],
         userLocation: CLLocation? = nil,
         includeClosedFacilities: Bool = true
-    ) -> [MedicalFacility3DAnnotation] {
+    ) -> [CustomMapAnnotation] {
         
         return facilities.compactMap { facility in
             // Skip closed facilities if not desired
@@ -76,220 +76,102 @@ class MapboxDataConverter {
             // Get wait time information
             let waitTime = waitTimes[facility.id]
             let waitMinutes = waitTime?.waitMinutes
-            let waitChange = waitTime?.changeString
+            let _ = waitTime?.changeString // Unused for now
             
-            // Calculate distance string
-            let distanceString = calculateDistanceString(
-                to: facility,
-                from: userLocation
-            )
-            
-            // Determine facility type
-            let facilityType = mapFacilityType(facility.facilityType.rawValue)
-            
-            // Calculate priority level
-            let priority = calculatePriorityLevel(
+            // Determine color based on wait time and facility type
+            let color = determineAnnotationColor(
                 for: facility,
+                waitTime: waitMinutes
+            )
+            
+            // Create title and subtitle
+            let title = facility.name
+            let subtitle = createSubtitle(
                 waitTime: waitMinutes,
-                userLocation: userLocation
+                facilityType: facility.facilityType.rawValue,
+                isOpen: facility.isOpen
             )
             
-            // Determine building height
-            let buildingHeight = determineBuildingHeight(
-                facilityType: facilityType,
-                facility: facility
-            )
-            
-            return MedicalFacility3DAnnotation(
+            return CustomMapAnnotation(
                 id: facility.id,
                 coordinate: facility.coordinate,
-                name: facility.name,
-                facilityType: facilityType,
-                waitTime: waitMinutes,
-                waitTimeChange: waitChange,
-                distance: distanceString,
-                isOpen: facility.isOpen,
-                buildingHeight: buildingHeight,
-                priorityLevel: priority,
-                customIcon: selectCustomIcon(for: facility)
+                color: color,
+                title: title,
+                subtitle: subtitle
             )
         }
     }
     
-    /// Convert legacy annotation data to 3D annotations
+    /// Convert legacy annotation data to custom annotations
     /// - Parameters:
-    ///   - annotations: Existing legacy map annotations
     ///   - facilityData: Facility data for additional information
-    /// - Returns: Array of 3D annotations
+    /// - Returns: Array of custom map annotations
     func convertLegacyAnnotations(
         with facilityData: [Facility]
-    ) -> [MedicalFacility3DAnnotation] {
+    ) -> [CustomMapAnnotation] {
         
-        // Convert facilities directly to 3D annotations with default settings
+        // Convert facilities directly to custom annotations with default settings
         return facilityData.map { facility in
-            MedicalFacility3DAnnotation(
+            CustomMapAnnotation(
                 id: facility.id,
                 coordinate: facility.coordinate,
-                name: facility.name,
-                facilityType: mapFacilityType(facility.facilityType.rawValue),
-                waitTime: nil,
-                waitTimeChange: nil,
-                distance: nil,
-                isOpen: facility.isOpen,
-                buildingHeight: DefaultBuildingHeights.hospital,
-                priorityLevel: .medium,
-                customIcon: nil
+                color: determineAnnotationColor(for: facility, waitTime: nil),
+                title: facility.name,
+                subtitle: facility.facilityType.rawValue
             )
         }
     }
     
     // MARK: - Private Helper Methods
     
-    /// Map internal facility type to 3D annotation facility type
-    private func mapFacilityType(_ type: String) -> MedicalFacility3DAnnotation.FacilityType {
-        switch type.lowercased() {
-        case "er", "ed", "emergency", "emergency department":
-            return .emergencyDepartment
-        case "uc", "urgent care", "urgent":
-            return .urgentCare
-        default:
-            return .hospital
-        }
-    }
-    
-    /// Calculate priority level based on multiple factors
-    private func calculatePriorityLevel(
-        for facility: Facility,
-        waitTime: Int?,
-        userLocation: CLLocation?
-    ) -> MedicalFacility3DAnnotation.PriorityLevel {
+    /// Determine annotation color based on facility type and wait time
+    private func determineAnnotationColor(for facility: Facility, waitTime: Int?) -> UIColor {
+        // Priority: wait time > facility type > default
         
-        var priorityScore = 0
-        
-        // Wait time factor (lower wait time = higher priority)
         if let wait = waitTime {
-            if wait >= PriorityThresholds.criticalWaitTime {
-                priorityScore -= 2
-            } else if wait >= PriorityThresholds.highWaitTime {
-                priorityScore -= 1
-            } else if wait <= PriorityThresholds.mediumWaitTime {
-                priorityScore += 2
-            } else {
-                priorityScore += 1
+            switch wait {
+            case 0...15:
+                return .systemGreen
+            case 16...30:
+                return .systemYellow
+            case 31...60:
+                return .systemOrange
+            default:
+                return .systemRed
             }
         }
         
-        // Distance factor (closer = higher priority)
-        if let userLoc = userLocation {
-            let facilityLocation = CLLocation(
-                latitude: facility.coordinate.latitude,
-                longitude: facility.coordinate.longitude
-            )
-            let distance = userLoc.distance(from: facilityLocation)
-            
-            if distance <= 1000 { // Within 1km
-                priorityScore += 2
-            } else if distance <= 5000 { // Within 5km
-                priorityScore += 1
-            } else if distance >= PriorityThresholds.maxDistance {
-                priorityScore -= 1
-            }
-        }
-        
-        // Facility type factor
+        // Fallback to facility type colors
         switch facility.facilityType.rawValue.lowercased() {
-        case "ed", "emergency", "emergency department":
-            priorityScore += 1 // Emergency departments are important
-        case "uc", "urgent care":
-            priorityScore += 0 // Neutral
+        case "er", "ed", "emergency", "emergency department":
+            return .systemRed
+        case "uc", "urgent care", "urgent":
+            return .systemOrange
         default:
-            priorityScore -= 1 // General hospitals lower priority for urgent needs
-        }
-        
-        // Open/closed status
-        if !facility.isOpen {
-            priorityScore -= 3
-        }
-        
-        // Map score to priority level
-        switch priorityScore {
-        case 4...:
-            return .critical
-        case 2...3:
-            return .high
-        case 0...1:
-            return .medium
-        default:
-            return .low
+            return .systemBlue
         }
     }
     
-    /// Determine building height for 3D visualization
-    private func determineBuildingHeight(
-        facilityType: MedicalFacility3DAnnotation.FacilityType,
-        facility: Facility
-    ) -> Double {
+    /// Create subtitle text for annotation
+    private func createSubtitle(waitTime: Int?, facilityType: String, isOpen: Bool) -> String {
+        var components: [String] = []
         
-        // Base height by facility type
-        var height: Double
+        // Add facility type
+        components.append(facilityType)
         
-        switch facilityType {
-        case .emergencyDepartment:
-            height = DefaultBuildingHeights.emergencyDepartment
-        case .urgentCare:
-            height = DefaultBuildingHeights.urgentCare
-        case .hospital:
-            height = DefaultBuildingHeights.hospital
-        case .clinic:
-            height = DefaultBuildingHeights.clinics
-        case .pharmacy:
-            height = DefaultBuildingHeights.clinics
+        // Add wait time if available
+        if let wait = waitTime {
+            components.append("\(wait) min wait")
         }
         
-        // Adjust based on facility name (heuristic for size)
-        let name = facility.name.lowercased()
-        
-        if name.contains("medical center") || name.contains("hospital") {
-            height *= 1.2 // Larger buildings
-        } else if name.contains("clinic") || name.contains("care center") {
-            height *= 0.8 // Smaller buildings
+        // Add open/closed status
+        if !isOpen {
+            components.append("CLOSED")
         }
         
-        // Add some variation for visual interest
-        let variation = Double.random(in: 0.9...1.1)
-        return height * variation
+        return components.joined(separator: " • ")
     }
     
-    /// Calculate distance string from user location
-    private func calculateDistanceString(
-        to facility: Facility,
-        from userLocation: CLLocation?
-    ) -> String? {
-        
-        guard let userLoc = userLocation else { return nil }
-        
-        let facilityLocation = CLLocation(
-            latitude: facility.coordinate.latitude,
-            longitude: facility.coordinate.longitude
-        )
-        
-        let distance = userLoc.distance(from: facilityLocation)
-        
-        // Format distance appropriately
-        if distance < 1000 {
-            return "\(Int(distance))m"
-        } else {
-            let km = distance / 1000.0
-            return String(format: "%.1fkm", km)
-        }
-    }
-    
-    /// Select custom icon for facility if needed
-    private func selectCustomIcon(for facility: Facility) -> String? {
-        // Return nil to use default icons
-        // Could be extended for specific facility branding
-        return nil
-    }
 }
 
 // MARK: - Supporting Extensions
@@ -297,11 +179,11 @@ class MapboxDataConverter {
 /// Extension to provide conversion methods for existing app models
 extension Facility {
     
-    /// Convert to 3D annotation using default converter
-    func toMapbox3DAnnotation(
+    /// Convert to custom map annotation using default converter
+    func toCustomMapAnnotation(
         waitTime: WaitTime? = nil,
         userLocation: CLLocation? = nil
-    ) -> MedicalFacility3DAnnotation {
+    ) -> CustomMapAnnotation {
         
         let converter = MapboxDataConverter()
         
@@ -309,7 +191,7 @@ extension Facility {
         let facilities = [self]
         let waitTimes = waitTime != nil ? [self.id: waitTime!] : [:]
         
-        return converter.convertToMapbox3DAnnotations(
+        return converter.convertToMapboxAnnotations(
             facilities: facilities,
             waitTimes: waitTimes,
             userLocation: userLocation
@@ -353,47 +235,29 @@ extension WaitTime {
 
 extension MapboxDataConverter {
     
-    /// Generate sample 3D annotations for previews and testing
-    static func sampleAnnotations() -> [MedicalFacility3DAnnotation] {
+    /// Generate sample custom annotations for previews and testing
+    static func sampleAnnotations() -> [CustomMapAnnotation] {
         return [
-            MedicalFacility3DAnnotation(
+            CustomMapAnnotation(
                 id: "sample1",
                 coordinate: CLLocationCoordinate2D(latitude: 38.6270, longitude: -90.1994),
-                name: "Barnes-Jewish Hospital Emergency",
-                facilityType: .emergencyDepartment,
-                waitTime: 45,
-                waitTimeChange: "+5 min",
-                distance: "2.3 mi",
-                isOpen: true,
-                buildingHeight: 100.0,
-                priorityLevel: .high,
-                customIcon: nil
+                color: .systemRed,
+                title: "Barnes-Jewish Hospital Emergency",
+                subtitle: "Emergency Department • 45 min wait"
             ),
-            MedicalFacility3DAnnotation(
+            CustomMapAnnotation(
                 id: "sample2",
                 coordinate: CLLocationCoordinate2D(latitude: 38.6370, longitude: -90.2094),
-                name: "Urgent Care Plus",
-                facilityType: .urgentCare,
-                waitTime: 15,
-                waitTimeChange: "-2 min",
-                distance: "1.8 mi",
-                isOpen: true,
-                buildingHeight: 25.0,
-                priorityLevel: .medium,
-                customIcon: nil
+                color: .systemGreen,
+                title: "Urgent Care Plus",
+                subtitle: "Urgent Care • 15 min wait"
             ),
-            MedicalFacility3DAnnotation(
+            CustomMapAnnotation(
                 id: "sample3",
                 coordinate: CLLocationCoordinate2D(latitude: 38.6170, longitude: -90.1794),
-                name: "St. Louis University Hospital",
-                facilityType: .hospital,
-                waitTime: 32,
-                waitTimeChange: "Same",
-                distance: "3.1 mi",
-                isOpen: true,
-                buildingHeight: 120.0,
-                priorityLevel: .medium,
-                customIcon: nil
+                color: .systemOrange,
+                title: "St. Louis University Hospital",
+                subtitle: "Hospital • 32 min wait"
             )
         ]
     }

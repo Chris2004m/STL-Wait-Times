@@ -167,6 +167,16 @@ class FacilityListViewModel: ObservableObject {
         return locationService.canLogWaitTime(for: facility.id)
     }
     
+    // MARK: - Map Annotations
+    func mapAnnotations() -> [CustomMapAnnotation] {
+        let converter = MapboxDataConverter()
+        return converter.convertToMapboxAnnotations(
+            facilities: facilities,
+            waitTimes: waitTimes,
+            userLocation: locationService.currentLocation
+        )
+    }
+    
     // MARK: - Actions
     func toggleFacilityType() {
         selectedFacilityType = selectedFacilityType == .emergencyDepartment ? .urgentCare : .emergencyDepartment

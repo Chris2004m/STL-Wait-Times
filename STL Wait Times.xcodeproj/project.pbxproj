@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		83F8DD1A2E22CD5E000FF4A1 /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = 83F8DD192E22CD5E000FF4A1 /* SwiftSoup */; };
+		83F8DD1B2E22CD5E000FF4A1 /* MapboxMaps in Frameworks */ = {isa = PBXBuildFile; productRef = 83F8DD1C2E22CD5E000FF4A1 /* MapboxMaps */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +58,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				83F8DD1A2E22CD5E000FF4A1 /* SwiftSoup in Frameworks */,
+				83F8DD1B2E22CD5E000FF4A1 /* MapboxMaps in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -126,6 +128,7 @@
 			name = "STL Wait Times";
 			packageProductDependencies = (
 				83F8DD192E22CD5E000FF4A1 /* SwiftSoup */,
+				83F8DD1C2E22CD5E000FF4A1 /* MapboxMaps */,
 			);
 			productName = "STL Wait Times";
 			productReference = 83F8DCED2E22CBB0000FF4A1 /* STL Wait Times.app */;
@@ -211,6 +214,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				83F8DD172E22CD55000FF4A1 /* XCRemoteSwiftPackageReference "SwiftSoup" */,
+				83F8DD1D2E22CD55000FF4A1 /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 83F8DCEE2E22CBB0000FF4A1 /* Products */;
@@ -585,6 +589,14 @@
 				minimumVersion = 2.9.5;
 			};
 		};
+		83F8DD1D2E22CD55000FF4A1 /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mapbox/mapbox-maps-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 11.7.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -592,6 +604,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 83F8DD172E22CD55000FF4A1 /* XCRemoteSwiftPackageReference "SwiftSoup" */;
 			productName = SwiftSoup;
+		};
+		83F8DD1C2E22CD5E000FF4A1 /* MapboxMaps */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 83F8DD1D2E22CD55000FF4A1 /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */;
+			productName = MapboxMaps;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

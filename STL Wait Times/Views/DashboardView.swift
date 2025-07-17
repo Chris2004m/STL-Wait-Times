@@ -64,16 +64,13 @@ struct DashboardView: View {
     
     var body: some View {
         ZStack {
-            // Background Map - Enhanced 3D Mapbox View
-            MapboxView3D(
+            // Background Map - Enhanced Mapbox View
+            MapboxView(
                 coordinateRegion: $region,
-                annotations: mapbox3DAnnotations,
-                mapMode: mapMode,
+                annotations: mapboxAnnotations,
+                mapStyle: "standard",
                 onMapTap: { coordinate in
                     handleMapTap(at: coordinate)
-                },
-                onAnnotationTap: { annotation in
-                    handleFacilitySelection(annotation)
                 }
             )
             .ignoresSafeArea()
@@ -234,6 +231,8 @@ struct DashboardView: View {
     
     /// Handle facility annotation selection
     /// - Parameter annotation: The selected 3D facility annotation
+    // Note: Temporarily commented out since MapboxView doesn't support this callback yet
+    /*
     private func handleFacilitySelection(_ annotation: MedicalFacility3DAnnotation) {
         // Update selected facility
         selectedFacilityId = annotation.id
@@ -258,6 +257,7 @@ struct DashboardView: View {
         // - Loading detailed facility information
         // - Starting navigation
     }
+    */
     
     // MARK: - Map Annotations
     private var mapAnnotations: [FacilityMapAnnotation] {
@@ -268,8 +268,10 @@ struct DashboardView: View {
         ]
     }
     
-    // MARK: - Mapbox Annotations
-    private var mapboxAnnotations: [CustomMapAnnotation] {
+    // MARK: - Mapbox Annotations (Legacy)
+    // Note: This is replaced by the more complete mapboxAnnotations method below
+    /*
+    private var mapboxAnnotationsLegacy: [CustomMapAnnotation] {
         mapAnnotations.map { annotation in
             CustomMapAnnotation(
                 id: annotation.id,
@@ -280,10 +282,11 @@ struct DashboardView: View {
             )
         }
     }
+    */
     
     // MARK: - 3D Mapbox Annotations
-    /// Convert facility data to enhanced 3D annotations with wait times and priorities
-    private var mapbox3DAnnotations: [MedicalFacility3DAnnotation] {
+    /// Convert facility data to custom map annotations with wait times and priorities
+    private var mapboxAnnotations: [CustomMapAnnotation] {
         // Convert current facility data to proper Facility models for 3D conversion
         let facilities = facilityData.map { dashboardFacility -> Facility in
             Facility(
@@ -317,7 +320,7 @@ struct DashboardView: View {
             }
         )
         
-        return dataConverter.convertToMapbox3DAnnotations(
+        return dataConverter.convertToMapboxAnnotations(
             facilities: facilities,
             waitTimes: waitTimes,
             userLocation: nil // TODO: Get from LocationService
