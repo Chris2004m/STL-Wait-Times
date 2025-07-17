@@ -59,8 +59,10 @@ struct DashboardView: View {
     @State private var mapMode: MapDisplayMode = .hybrid2D
     @State private var selectedFacilityId: String? = nil
     
-    // MARK: - Data Converter
+    // MARK: - Services
+    @StateObject private var locationService = LocationService.shared
     private let dataConverter = MapboxDataConverter()
+    
     
     var body: some View {
         ZStack {
@@ -77,6 +79,7 @@ struct DashboardView: View {
             .opacity(sheetState == .expanded ? DashboardConstants.mapOpacity : 1.0)
             .animation(.easeInOut(duration: 0.3), value: sheetState)
             
+            
             // Simple Reliable Bottom Sheet
             SimpleBottomSheetView(
                 state: $sheetState,
@@ -89,6 +92,7 @@ struct DashboardView: View {
             }
         }
     }
+    
     
     // MARK: - Sheet Content
     
@@ -181,6 +185,10 @@ struct DashboardView: View {
             // Fill remaining space to ensure sheet extends to bottom
             Spacer(minLength: 0)
         }
+        .onAppear {
+            // Request location permission for better map experience
+            locationService.requestLocationPermission()
+        }
     }
     
     // MARK: - Computed Properties
@@ -218,15 +226,31 @@ struct DashboardView: View {
     /// - Parameter coordinate: The tapped coordinate on the map
     private func handleMapTap(at coordinate: CLLocationCoordinate2D) {
         // Handle map tap interactions
-        // Could be used for adding new facilities, getting info about location, etc.
         print("Map tapped at: \(coordinate.latitude), \(coordinate.longitude)")
+        
+        // Reset sheet to peek state when tapping map
+        withAnimation(.spring(response: DashboardConstants.springResponse, dampingFraction: DashboardConstants.springDamping)) {
+            sheetState = .peek
+        }
         
         // Clear any selected facility
         selectedFacilityId = nil
         
+        
         // Provide haptic feedback
         let impact = UIImpactFeedbackGenerator(style: .light)
         impact.impactOccurred()
+    }
+    
+    /// Find nearby facility annotation for tap-to-fly functionality
+    private func findNearbyFacility(coordinate: CLLocationCoordinate2D) -> CustomMapAnnotation? {
+        let tapLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        let threshold: CLLocationDistance = 1000 // 1km threshold
+        
+        return mapboxAnnotations.first { annotation in
+            let facilityLocation = CLLocation(latitude: annotation.coordinate.latitude, longitude: annotation.coordinate.longitude)
+            return tapLocation.distance(from: facilityLocation) < threshold
+        }
     }
     
     /// Handle facility annotation selection
@@ -288,8 +312,14 @@ struct DashboardView: View {
     /// Convert facility data to custom map annotations with wait times and priorities
     private var mapboxAnnotations: [CustomMapAnnotation] {
         // Convert current facility data to proper Facility models for 3D conversion
-        let facilities = facilityData.map { dashboardFacility -> Facility in
-            Facility(
+        let facilities = facilityData.enumerated().map { index, dashboardFacility -> Facility in
+            // Use different coordinates for each facility to spread them around St. Louis
+            let baseLatitude = 38.6270
+            let baseLongitude = -90.1994
+            let latOffset = (Double(index) - 2.0) * 0.02 // Spread facilities around
+            let lonOffset = (Double(index % 3) - 1.0) * 0.03
+            
+            return Facility(
                 id: dashboardFacility.id,
                 name: dashboardFacility.name,
                 address: "Address", // TODO: Add actual address data
@@ -299,8 +329,8 @@ struct DashboardView: View {
                 phone: "555-0123",
                 facilityType: dashboardFacility.type == "ER" ? .emergencyDepartment : .urgentCare,
                 coordinate: CLLocationCoordinate2D(
-                    latitude: 38.6270, // Use facility coordinate when available
-                    longitude: -90.1994
+                    latitude: baseLatitude + latOffset,
+                    longitude: baseLongitude + lonOffset
                 )
             )
         }
@@ -323,9 +353,11 @@ struct DashboardView: View {
         return dataConverter.convertToMapboxAnnotations(
             facilities: facilities,
             waitTimes: waitTimes,
-            userLocation: nil // TODO: Get from LocationService
+            userLocation: locationService.currentLocation
         )
     }
+    
+    
     
     // MARK: - Medical Facility Data
     private var facilityData: [MedicalFacility] {

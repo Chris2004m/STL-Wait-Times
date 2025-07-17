@@ -11,6 +11,42 @@ import MapboxMaps
 import MapKit
 import CoreLocation
 
+/// **FlyToTrigger**: Trigger structure for fly-to animations
+struct FlyToTrigger: Equatable {
+    let coordinate: CLLocationCoordinate2D
+    let zoom: Double
+    let pitch: Double
+    let bearing: Double
+    let duration: TimeInterval
+    let id: UUID = UUID()
+    
+    static func == (lhs: FlyToTrigger, rhs: FlyToTrigger) -> Bool {
+        return lhs.id == rhs.id
+    }
+    
+    /// Create a facility-focused fly-to trigger
+    static func facility(_ annotation: CustomMapAnnotation) -> FlyToTrigger {
+        return FlyToTrigger(
+            coordinate: annotation.coordinate,
+            zoom: 16.0,
+            pitch: 60.0,
+            bearing: 0.0,
+            duration: 2.5
+        )
+    }
+    
+    /// Create an overview fly-to trigger
+    static func overview(animated: Bool = true) -> FlyToTrigger {
+        return FlyToTrigger(
+            coordinate: CLLocationCoordinate2D(latitude: 38.6270, longitude: -90.1994),
+            zoom: 12.0,
+            pitch: 45.0,
+            bearing: 0.0,
+            duration: animated ? 3.0 : 0.0
+        )
+    }
+}
+
 /// **MapboxView**: Professional Mapbox integration with Standard Core style
 ///
 /// **Features:**
@@ -43,9 +79,14 @@ struct MapboxView: UIViewRepresentable {
     
     class Coordinator: NSObject {
         let parent: MapboxView
+        private var mapView: MapView?
         
         init(_ parent: MapboxView) {
             self.parent = parent
+        }
+        
+        func setMapView(_ mapView: MapView) {
+            self.mapView = mapView
         }
         
         @objc func handleTap(_ gesture: UITapGestureRecognizer) {
@@ -55,6 +96,39 @@ struct MapboxView: UIViewRepresentable {
             let coordinate = mapView.mapboxMap.coordinate(for: point)
             
             parent.onMapTap?(coordinate)
+        }
+        
+        /// Execute fly-to camera animation
+        func executeFlyTo(
+            coordinate: CLLocationCoordinate2D,
+            zoom: Double = 14.0,
+            pitch: Double = 45.0,
+            bearing: Double = 0.0,
+            duration: TimeInterval = 2.0
+        ) {
+            guard let mapView = self.mapView else { return }
+            
+            // Notify animation start
+            parent.onCameraAnimationStart?()
+            
+            // Create target camera options
+            let targetCamera = CameraOptions(
+                center: coordinate,
+                zoom: zoom,
+                bearing: bearing,
+                pitch: pitch
+            )
+            
+            // Start the animation with completion handler
+            mapView.camera.ease(to: targetCamera, duration: duration) { _ in
+                DispatchQueue.main.async {
+                    self.parent.onFlyToComplete?()
+                }
+            }
+            
+            // Announce for accessibility
+            let announcement = "Flying to new location"
+            UIAccessibility.post(notification: .announcement, argument: announcement)
         }
     }
     
@@ -71,6 +145,15 @@ struct MapboxView: UIViewRepresentable {
     
     /// Callback for map tap events
     var onMapTap: ((CLLocationCoordinate2D) -> Void)?
+    
+    /// Callback for fly-to animation completion
+    var onFlyToComplete: (() -> Void)?
+    
+    /// Callback for camera animation start
+    var onCameraAnimationStart: (() -> Void)?
+    
+    /// Trigger for fly-to animation
+    var flyToTrigger: FlyToTrigger?
     
     /// Mapbox access token
     private let accessToken = "pk.eyJ1IjoiY21pbHRvbjQiLCJhIjoiY21kNTVkcjh1MG05eTJrb21qeHB0aXo4bCJ9.5vv9akWMhonZ_J3ftkUKRg"
@@ -96,6 +179,9 @@ struct MapboxView: UIViewRepresentable {
         // Add accessibility
         setupAccessibility(mapView: mapView)
         
+        // Store map view in coordinator for fly-to functionality
+        context.coordinator.setMapView(mapView)
+        
         return mapView
     }
     
@@ -105,6 +191,17 @@ struct MapboxView: UIViewRepresentable {
         
         // Update annotations
         updateAnnotations(mapView: mapView)
+        
+        // Handle fly-to trigger
+        if let trigger = flyToTrigger {
+            context.coordinator.executeFlyTo(
+                coordinate: trigger.coordinate,
+                zoom: trigger.zoom,
+                pitch: trigger.pitch,
+                bearing: trigger.bearing,
+                duration: trigger.duration
+            )
+        }
     }
     
     // MARK: - Configuration Methods
@@ -115,9 +212,9 @@ struct MapboxView: UIViewRepresentable {
         mapView.mapboxMap.styleURI = .standard
         
         // Configure Standard style properties for enhanced 3D experience
-        mapView.mapboxMap.onStyleLoaded.observeNext { _ in
-            // Enable 3D buildings and objects
+        _ = mapView.mapboxMap.onStyleLoaded.observeNext { _ in
             do {
+                // Enable 3D buildings and objects
                 try mapView.mapboxMap.setStyleImportConfigProperty(
                     for: "basemap",
                     config: "show3dObjects",
@@ -125,7 +222,7 @@ struct MapboxView: UIViewRepresentable {
                 )
                 
                 // Set dynamic lighting based on time of day
-                let lightPreset = getCurrentLightPreset()
+                let lightPreset = self.getCurrentLightPreset()
                 try mapView.mapboxMap.setStyleImportConfigProperty(
                     for: "basemap",
                     config: "lightPreset",
@@ -156,8 +253,10 @@ struct MapboxView: UIViewRepresentable {
                     config: "showTransitLabels",
                     value: false
                 )
+                
+                print("✅ Mapbox Standard Core style configured successfully")
             } catch {
-                print("Error configuring Mapbox Standard style properties: \(error)")
+                print("❌ Error configuring Mapbox Standard style properties: \(error)")
             }
         }
     }
@@ -275,16 +374,82 @@ struct MapboxView: UIViewRepresentable {
     
     /// Convert MKCoordinateSpan to Mapbox zoom level
     private func getZoomLevel(from span: MKCoordinateSpan) -> Double {
-        let region = MKCoordinateRegion(
-            center: coordinateRegion.center,
-            span: span
-        )
-        
         // Approximate zoom level calculation
         let longitudeDelta = span.longitudeDelta
         let zoom = log2(360.0 / longitudeDelta)
         
         return max(1.0, min(zoom, 20.0))
+    }
+}
+
+// MARK: - Fly-To Animation Methods
+
+extension MapboxView {
+    
+    /// Fly to a specific location with smooth animation
+    /// - Parameters:
+    ///   - coordinate: Target coordinate
+    ///   - zoom: Target zoom level (default: 14.0)
+    ///   - pitch: Camera pitch in degrees (default: 45.0 for 3D view)
+    ///   - bearing: Camera bearing in degrees (default: 0.0)
+    ///   - duration: Animation duration in seconds (default: 2.0)
+    ///   - coordinator: The coordinator instance to execute the animation
+    static func flyToLocation(
+        coordinator: Coordinator,
+        coordinate: CLLocationCoordinate2D,
+        zoom: Double = 14.0,
+        pitch: Double = 45.0,
+        bearing: Double = 0.0,
+        duration: TimeInterval = 2.0
+    ) {
+        coordinator.executeFlyTo(
+            coordinate: coordinate,
+            zoom: zoom,
+            pitch: pitch,
+            bearing: bearing,
+            duration: duration
+        )
+    }
+    
+    /// Fly to a medical facility with optimal viewing angle
+    /// - Parameters:
+    ///   - coordinator: The coordinator instance to execute the animation
+    ///   - annotation: Medical facility annotation
+    ///   - completion: Completion callback
+    static func flyToFacility(
+        coordinator: Coordinator,
+        annotation: CustomMapAnnotation,
+        completion: @escaping () -> Void = {}
+    ) {
+        coordinator.executeFlyTo(
+            coordinate: annotation.coordinate,
+            zoom: 16.0,
+            pitch: 60.0,
+            bearing: 0.0,
+            duration: 2.5
+        )
+        
+        // Call completion after animation duration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            completion()
+        }
+    }
+    
+    /// Return to St. Louis overview with smooth animation
+    /// - Parameters:
+    ///   - coordinator: The coordinator instance to execute the animation
+    ///   - animated: Whether to animate the transition
+    static func returnToOverview(coordinator: Coordinator, animated: Bool = true) {
+        let stLouisOverview = CLLocationCoordinate2D(latitude: 38.6270, longitude: -90.1994)
+        let duration: TimeInterval = animated ? 3.0 : 0.0
+        
+        coordinator.executeFlyTo(
+            coordinate: stLouisOverview,
+            zoom: 12.0,
+            pitch: 45.0,
+            bearing: 0.0,
+            duration: duration
+        )
     }
 }
 
