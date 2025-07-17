@@ -346,16 +346,7 @@ struct AccessibilityAction {
 // MARK: - BottomSheetState Extensions
 
 extension BottomSheetState {
-    var accessibilityDescription: String {
-        switch self {
-        case .peek:
-            return "Minimized view showing facility summary"
-        case .medium:
-            return "Medium view showing facility details"
-        case .expanded:
-            return "Full view with search and complete facility list"
-        }
-    }
+    // accessibilityDescription is already defined in SimpleBottomSheetView.swift
     
     var accessibilityIcon: String {
         switch self {

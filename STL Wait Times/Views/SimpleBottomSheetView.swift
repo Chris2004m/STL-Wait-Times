@@ -155,7 +155,7 @@ struct SimpleBottomSheetView<Content: View>: View {
     
     // MARK: - Gestures
     
-    /// Simple swipe gesture recognizer
+    /// Simple swipe gesture recognizer with improved scroll view compatibility
     private func swipeGesture(geometry: GeometryProxy) -> some Gesture {
         DragGesture(coordinateSpace: .global)
             .onEnded { value in
@@ -173,15 +173,21 @@ struct SimpleBottomSheetView<Content: View>: View {
         
         // Calculate swipe direction and distance
         let swipeDistance = value.translation.height
+        let swipeVelocity = value.velocity.height
         let minSwipeDistance = configuration.minSwipeDistance
+        
+        // More intelligent gesture detection - consider both distance and velocity
+        let shouldHandleGesture = abs(swipeDistance) > minSwipeDistance || abs(swipeVelocity) > 300
+        
+        guard shouldHandleGesture else { return }
         
         // Determine new state based on swipe direction
         let newState: BottomSheetState
         
-        if swipeDistance < -minSwipeDistance {
+        if swipeDistance < -minSwipeDistance || swipeVelocity < -300 {
             // Swipe up - move to next state
             newState = state.nextStateUp
-        } else if swipeDistance > minSwipeDistance {
+        } else if swipeDistance > minSwipeDistance || swipeVelocity > 300 {
             // Swipe down - move to previous state
             newState = state.nextStateDown
         } else {
@@ -449,7 +455,14 @@ extension BottomSheetState {
         }
     }
     
-    // Note: accessibilityDescription is defined in AccessibilityEnhancedBottomSheet.swift
+    /// Accessibility description for the sheet state
+    var accessibilityDescription: String {
+        switch self {
+        case .peek: return "peek view"
+        case .medium: return "medium view"
+        case .expanded: return "expanded view"
+        }
+    }
 }
 
 // MARK: - Corner Radius Extension

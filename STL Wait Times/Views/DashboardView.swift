@@ -156,28 +156,30 @@ struct DashboardView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
             
-            // Facility List - fills remaining space to bottom
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(visibleFacilities.indices, id: \.self) { index in
-                        let facility = visibleFacilities[index]
-                        
-                        FacilityCard(
-                            facility: facility,
-                            isFirstCard: index == 0,
-                            sheetState: sheetState
-                        )
-                        
-                        if index < visibleFacilities.count - 1 {
-                            Divider()
-                                .padding(.leading, 80)
-                                .opacity(sheetState == .expanded ? 1.0 : 0.5)
-                        }
-                    }
+            // Enhanced Facility List with smooth scrolling
+            EnhancedScrollingView(
+                items: visibleFacilities,
+                sheetState: $sheetState,
+                configuration: ScrollConfiguration(
+                    itemSpacing: 0,
+                    bottomPadding: 20,
+                    dividerLeadingPadding: 80,
+                    showScrollIndicators: false,
+                    animationResponse: DashboardConstants.springResponse,
+                    animationDamping: DashboardConstants.springDamping,
+                    enableViewRecycling: true,
+                    visibleRangeBuffer: 3
+                ),
+                onScrollPositionChange: { position in
+                    handleScrollPositionChange(position)
                 }
-                .padding(.bottom, 20)
+            ) { facility, index, sheetState in
+                FacilityCard(
+                    facility: facility,
+                    isFirstCard: index == 0,
+                    sheetState: sheetState
+                )
             }
-            .clipped()
             
             // Fill remaining space to ensure sheet extends to bottom
             Spacer(minLength: 0)
@@ -199,7 +201,18 @@ struct DashboardView: View {
     /// Handle sheet state changes
     private func handleSheetStateChange(_ newState: BottomSheetState) {
         // Additional logic when sheet state changes
-        // This is handled by the UltimateBottomSheetView now
+        // This is handled by the SimpleBottomSheetView now
+    }
+    
+    /// Handle scroll position changes for analytics and optimization
+    private func handleScrollPositionChange(_ position: ScrollPosition) {
+        // Update analytics or perform actions based on scroll position
+        // This can be used for performance monitoring and user behavior tracking
+        
+        // Example: Log scroll performance metrics
+        #if DEBUG
+        print("📊 Scroll Position: offset=\(position.offset), visible=\(position.visibleRange)")
+        #endif
     }
     
     // MARK: - 3D Map Interaction Handlers
@@ -366,6 +379,62 @@ struct DashboardView: View {
                 waitDetails: "MINUTES",
                 distance: "5.8 mi",
                 waitChange: "-1 min",
+                status: "Open",
+                isOpen: true
+            ),
+            // Additional facilities for testing scroll functionality
+            MedicalFacility(
+                id: "6",
+                name: "SSM Health Cardinal Glennon",
+                type: "ER",
+                waitTime: "22",
+                waitDetails: "MINUTES",
+                distance: "3.5 mi",
+                waitChange: "+1 min",
+                status: "Open",
+                isOpen: true
+            ),
+            MedicalFacility(
+                id: "7",
+                name: "St. Luke's Hospital",
+                type: "ER",
+                waitTime: "52",
+                waitDetails: "MINUTES",
+                distance: "6.1 mi",
+                waitChange: "+8 min",
+                status: "Busy",
+                isOpen: true
+            ),
+            MedicalFacility(
+                id: "8",
+                name: "Total Access Urgent Care",
+                type: "UC",
+                waitTime: "12",
+                waitDetails: "MINUTES",
+                distance: "1.2 mi",
+                waitChange: "-3 min",
+                status: "Open",
+                isOpen: true
+            ),
+            MedicalFacility(
+                id: "9",
+                name: "Progress West Hospital",
+                type: "ER",
+                waitTime: "35",
+                waitDetails: "MINUTES",
+                distance: "7.8 mi",
+                waitChange: "Same",
+                status: "Open",
+                isOpen: true
+            ),
+            MedicalFacility(
+                id: "10",
+                name: "Mercy-GoHealth Urgent Care",
+                type: "UC",
+                waitTime: "8",
+                waitDetails: "MINUTES",
+                distance: "2.1 mi",
+                waitChange: "-5 min",
                 status: "Open",
                 isOpen: true
             )
