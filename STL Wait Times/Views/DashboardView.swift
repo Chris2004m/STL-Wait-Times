@@ -79,6 +79,8 @@ struct DashboardView: View {
             .opacity(sheetState == .expanded ? DashboardConstants.mapOpacity : 1.0)
             .animation(.easeInOut(duration: 0.3), value: sheetState)
             
+            // Location Centering Button
+            locationButton
             
             // Simple Reliable Bottom Sheet
             SimpleBottomSheetView(
@@ -93,6 +95,84 @@ struct DashboardView: View {
         }
     }
     
+    // MARK: - Location Button
+    
+    @ViewBuilder
+    private var locationButton: some View {
+        VStack {
+            HStack {
+                Spacer()
+                
+                // Location centering button matching compass button style
+                Button(action: {
+                    centerOnUserLocation()
+                }) {
+                    Image(systemName: "location.fill")
+                        .font(.system(size: iconSize, weight: .medium))
+                        .foregroundColor(iconColor)
+                        .frame(width: compassButtonSize, height: compassButtonSize)
+                        .background(compassButtonBackground)
+                        .clipShape(Circle())
+                        .shadow(color: compassShadowColor, radius: compassShadowRadius, x: compassShadowOffset.width, y: compassShadowOffset.height)
+                }
+                .disabled(!locationService.isLocationEnabled)
+                .opacity(locationService.isLocationEnabled ? 1.0 : 0.6)
+                .accessibility(label: Text("Center on my location"))
+                .accessibility(hint: Text("Centers the map on your current location"))
+                .padding(.trailing, 16) // Match compass button horizontal alignment
+            }
+            
+            Spacer()
+        }
+        .padding(.top, compassButtonTopOffset + compassButtonSize + buttonSpacing) // Position below compass button
+    }
+    
+    // MARK: - Computed Properties for Consistent Styling
+    
+    /// Compass button size - matches native Mapbox control
+    private var compassButtonSize: CGFloat {
+        40 // Native Mapbox compass button size
+    }
+    
+    /// Icon size matching native compass button
+    private var iconSize: CGFloat {
+        16 // Native compass icon size
+    }
+    
+    /// Background matching native Mapbox compass button
+    private var compassButtonBackground: some View {
+        Color.white.opacity(0.9) // White background like native compass
+    }
+    
+    /// Icon color matching native compass button
+    private var iconColor: Color {
+        .primary // Dark icon on light background
+    }
+    
+    /// Shadow color matching native compass button
+    private var compassShadowColor: Color {
+        .black.opacity(0.2) // More prominent shadow like native
+    }
+    
+    /// Shadow radius matching native compass button
+    private var compassShadowRadius: CGFloat {
+        3 // Native compass shadow radius
+    }
+    
+    /// Shadow offset matching native compass button
+    private var compassShadowOffset: CGSize {
+        CGSize(width: 0, height: 1) // Native compass shadow offset
+    }
+    
+    /// Top offset for compass button positioning
+    private var compassButtonTopOffset: CGFloat {
+        16 // Distance from top of safe area
+    }
+    
+    /// Spacing between compass and location buttons
+    private var buttonSpacing: CGFloat {
+        8 // Consistent spacing between buttons
+    }
     
     // MARK: - Sheet Content
     
@@ -240,6 +320,33 @@ struct DashboardView: View {
         // Provide haptic feedback
         let impact = UIImpactFeedbackGenerator(style: .light)
         impact.impactOccurred()
+    }
+    
+    /// Center the map on the user's current location
+    private func centerOnUserLocation() {
+        guard let userLocation = locationService.currentLocation else {
+            // Handle case where location is not available
+            return
+        }
+        
+        // Create a new region centered on user's location
+        let newRegion = MKCoordinateRegion(
+            center: userLocation.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05) // Closer zoom than default
+        )
+        
+        // Animate the region change
+        withAnimation(.easeInOut(duration: 0.8)) {
+            region = newRegion
+        }
+        
+        // Provide haptic feedback
+        let impact = UIImpactFeedbackGenerator(style: .medium)
+        impact.impactOccurred()
+        
+        // Announce for accessibility
+        let announcement = "Map centered on your location"
+        UIAccessibility.post(notification: .announcement, argument: announcement)
     }
     
     /// Find nearby facility annotation for tap-to-fly functionality
