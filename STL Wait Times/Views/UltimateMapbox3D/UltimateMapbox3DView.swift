@@ -64,6 +64,9 @@ struct UltimateMapbox3DView: View {
     /// Callback for style changes
     var onStyleChanged: ((MapboxStyle) -> Void)?
     
+    /// Lighting state
+    @State private var lightsEnabled: Bool = true
+    
     // MARK: - Core State Management
     
     /// Advanced 3D rendering engine
@@ -109,6 +112,17 @@ struct UltimateMapbox3DView: View {
                     onCameraReset: handleCameraReset
                 )
                 
+                // Lights toggle button
+                VStack {
+                    HStack {
+                        Spacer()
+                        lightsToggleButton
+                            .padding(.top, 60)
+                            .padding(.trailing, 16)
+                    }
+                    Spacer()
+                }
+                
                 // Performance Indicators (Development)
                 if configuration.showPerformanceMetrics {
                     MapboxPerformanceOverlay(monitor: performanceMonitor)
@@ -149,6 +163,7 @@ struct UltimateMapbox3DView: View {
             coordinateRegion: $cameraController.region,
             annotations: mapKitAnnotations,
             mapStyle: "standard",
+            lightsEnabled: lightsEnabled,
             onMapTap: { coordinate in
                 onLocationSelected?(coordinate)
             }
@@ -371,6 +386,37 @@ struct UltimateMapbox3DView: View {
         case .poi:
             return .systemTeal
         }
+    }
+    
+    // MARK: - UI Components
+    
+    /// Toggle button for enabling/disabling dynamic lighting
+    @ViewBuilder
+    private var lightsToggleButton: some View {
+        Button(action: {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                lightsEnabled.toggle()
+            }
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: lightsEnabled ? "lightbulb.fill" : "lightbulb")
+                    .font(.system(size: 16, weight: .medium))
+                Text(lightsEnabled ? "Lights On" : "Lights Off")
+                    .font(.caption)
+                    .fontWeight(.medium)
+            }
+            .foregroundColor(lightsEnabled ? .yellow : .secondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+        .accessibility(label: Text(lightsEnabled ? "Turn off dynamic lighting" : "Turn on dynamic lighting"))
+        .accessibility(hint: Text("Double tap to toggle lighting effects"))
     }
 }
 

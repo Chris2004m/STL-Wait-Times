@@ -63,6 +63,9 @@ struct DashboardView: View {
     
     // MARK: - 3D Map Properties
     @State private var mapMode: MapDisplayMode = .hybrid2D
+    
+    // MARK: - Lighting
+    @State private var lightsEnabled: Bool = true
     @State private var selectedFacilityId: String? = nil
     
     // MARK: - Services
@@ -81,6 +84,7 @@ struct DashboardView: View {
                 coordinateRegion: $region,
                 annotations: mapboxAnnotations,
                 mapStyle: "standard",
+                lightsEnabled: lightsEnabled,
                 onMapTap: { coordinate in
                     handleMapTap(at: coordinate)
                 },
@@ -92,6 +96,9 @@ struct DashboardView: View {
             
             // Location Centering Button
             locationButton
+            
+            // Lights Toggle Button
+            lightsToggleButton
             
             // Simple Reliable Bottom Sheet
             SimpleBottomSheetView(
@@ -120,6 +127,35 @@ struct DashboardView: View {
     // MARK: - Location Button
     
     @ViewBuilder
+    private var lightsToggleButton: some View {
+        VStack {
+            HStack {
+                Spacer()
+                
+                // Lights toggle button matching compass/location button style
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        lightsEnabled.toggle()
+                    }
+                }) {
+                    Image(systemName: lightsEnabled ? "lightbulb.fill" : "lightbulb")
+                        .font(.system(size: iconSize, weight: .medium))
+                        .foregroundColor(lightsEnabled ? .yellow : iconColor)
+                }
+                .frame(width: compassButtonSize, height: compassButtonSize)
+                .background(compassButtonBackground)
+                .clipShape(Circle())
+                .shadow(color: compassShadowColor, radius: compassShadowRadius, x: compassShadowOffset.width, y: compassShadowOffset.height)
+                .accessibility(label: Text(lightsEnabled ? "Disable 3D lights" : "Enable 3D lights"))
+                .accessibility(hint: Text("Toggles dynamic 3D lighting effects on the map"))
+                .padding(.trailing, compassButtonTrailingOffset) // Align with compass horizontally
+            }
+            
+            Spacer()
+        }
+        .padding(.top, compassButtonTopOffset + compassButtonSize + buttonSpacing + compassButtonSize + buttonSpacing) // Position below location button with proper spacing
+    }
+    
     private var locationButton: some View {
         VStack {
             HStack {

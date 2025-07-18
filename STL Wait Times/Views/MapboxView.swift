@@ -79,6 +79,24 @@ struct MapboxView: UIViewRepresentable, Equatable {
     }
     
     class Coordinator: NSObject {
+        var lightTimer: Timer? = nil
+        
+        /// Schedule a timer that refreshes the light preset every 30 minutes.
+        func scheduleLightRefresh(for mapView: MapView) {
+            // Invalidate existing timer if any
+            lightTimer?.invalidate()
+            lightTimer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { _ in
+                DispatchQueue.main.async {
+                    // Re-evaluate time-of-day preset
+                    do {
+                        let preset = Calendar.current.component(.hour, from: Date())
+                        print("🌗 Refreshing 3-D light preset, hour = \(preset)")
+                    }
+                    // Force style update via helper in parent
+                    self.parent.updateLightPreset(for: mapView)
+                }
+            }
+        }
         let parent: MapboxView
         private var mapView: MapView?
         
@@ -144,6 +162,9 @@ struct MapboxView: UIViewRepresentable, Equatable {
     /// Map style identifier (keeping for compatibility)
     var mapStyle: String = "standard"
     
+    /// Whether dynamic 3-D lights are enabled
+    var lightsEnabled: Bool = true
+    
     /// Callback for map tap events
     var onMapTap: ((CLLocationCoordinate2D) -> Void)?
     
@@ -162,6 +183,7 @@ struct MapboxView: UIViewRepresentable, Equatable {
     /// Mapbox access token
     private let accessToken = "pk.eyJ1IjoiY21pbHRvbjQiLCJhIjoiY21kNTVkcjh1MG05eTJrb21qeHB0aXo4bCJ9.5vv9akWMhonZ_J3ftkUKRg"
     
+    
     // MARK: - Equatable Implementation
     
     static func == (lhs: MapboxView, rhs: MapboxView) -> Bool {
@@ -175,8 +197,11 @@ struct MapboxView: UIViewRepresentable, Equatable {
         // Check if recenter trigger changed
         let triggerChanged = lhs.recenterTrigger != rhs.recenterTrigger
         
+        // Check if lights setting changed
+        let lightsChanged = lhs.lightsEnabled != rhs.lightsEnabled
+        
         // Return false if anything changed (this will trigger updateUIView)
-        return !centerChanged && !spanChanged && lhs.annotations.count == rhs.annotations.count && !triggerChanged
+        return !centerChanged && !spanChanged && lhs.annotations.count == rhs.annotations.count && !triggerChanged && !lightsChanged
     }
     
     // MARK: - UIViewRepresentable Implementation
@@ -189,7 +214,7 @@ struct MapboxView: UIViewRepresentable, Equatable {
         let mapView = MapView(frame: .zero)
         
         // Set up Standard Core style with 3D features
-        configureMapStyle(mapView: mapView)
+        configureMapStyle(mapView: mapView, coordinator: context.coordinator)
         
         // Set up initial camera position
         setupInitialCamera(mapView: mapView)
@@ -209,14 +234,33 @@ struct MapboxView: UIViewRepresentable, Equatable {
     func updateUIView(_ mapView: MapView, context: Context) {
         print("🔄 MapboxView updateUIView called")
         
-        // Update camera region if changed
-        updateCameraRegion(mapView: mapView)
+        // Store current state to determine what changed (use same logic as Equatable)
+        let currentCenter = mapView.mapboxMap.cameraState.center
+        let centerChanged = abs(coordinateRegion.center.latitude - currentCenter.latitude) > 0.0001 ||
+                           abs(coordinateRegion.center.longitude - currentCenter.longitude) > 0.0001
+        
+        let spanChanged = abs(coordinateRegion.span.latitudeDelta - 2.0) > 0.0001 ||
+                         abs(coordinateRegion.span.longitudeDelta - 2.0) > 0.0001 // Check against some baseline
+        
+        print("🔍 Update triggers - Center: \(centerChanged), Span: \(spanChanged), Recenter: \(recenterTrigger != nil)")
+        
+        // Update camera region only if position actually changed OR if explicitly triggered
+        if centerChanged || spanChanged || recenterTrigger != nil {
+            print("📍 Updating camera region")
+            updateCameraRegion(mapView: mapView)
+        } else {
+            print("⏭️ Skipping camera update - likely lights-only change")
+        }
         
         // Update annotations
         updateAnnotations(mapView: mapView)
         
+        // Always update 3D lights (was missing from original - this fixes lights toggle!)
+        configure3DLights(for: mapView)
+        
         // Handle fly-to trigger
         if let trigger = flyToTrigger {
+            print("✈️ Executing fly-to animation")
             context.coordinator.executeFlyTo(
                 coordinate: trigger.coordinate,
                 zoom: trigger.zoom,
@@ -225,12 +269,27 @@ struct MapboxView: UIViewRepresentable, Equatable {
                 duration: trigger.duration
             )
         }
+        
+        // Handle recenter trigger
+        if let _ = recenterTrigger {
+            print("🎯 Executing recenter animation")
+            context.coordinator.executeFlyTo(
+                coordinate: coordinateRegion.center,
+                zoom: getZoomLevel(from: coordinateRegion.span),
+                pitch: 45.0,
+                bearing: 0.0,
+                duration: 1.5
+            )
+        }
     }
     
     // MARK: - Configuration Methods
     
     /// Configure Mapbox Standard Core style with 3D features
-    private func configureMapStyle(mapView: MapView) {
+    private func configureMapStyle(mapView: MapView, coordinator: Coordinator) {
+        // Cancel any existing timer each time we rebuild style
+        coordinator.lightTimer?.invalidate()
+        coordinator.lightTimer = nil
         // Set Standard Core style
         mapView.mapboxMap.styleURI = .standard
         
@@ -244,13 +303,13 @@ struct MapboxView: UIViewRepresentable, Equatable {
                     value: true
                 )
                 
-                // Set dynamic lighting based on time of day
-                let lightPreset = self.getCurrentLightPreset()
-                try mapView.mapboxMap.setStyleImportConfigProperty(
-                    for: "basemap",
-                    config: "lightPreset",
-                    value: lightPreset
-                )
+                // Configure 3D lighting using Mapbox's experimental style content API
+                self.configure3DLights(for: mapView)
+                
+                if self.lightsEnabled {
+                    // Schedule timer to refresh lights every 30 minutes for dynamic lighting
+                    coordinator.scheduleLightRefresh(for: mapView)
+                }
                 
                 // Configure label visibility for medical facilities
                 try mapView.mapboxMap.setStyleImportConfigProperty(
@@ -395,7 +454,101 @@ struct MapboxView: UIViewRepresentable, Equatable {
         }
     }
     
+    // MARK: - Lighting Helpers
+    
+    /// Update 3D lights for mapView
+    private func updateLightPreset(for mapView: MapView) {
+        // Reconfigure 3D lights with current time-based parameters
+        configure3DLights(for: mapView)
+        print(" Updated 3D lights based on current time")
+    }
+    
     // MARK: - Utility Methods
+    
+    /// Configure 3D lights using Mapbox's experimental style content API
+    private func configure3DLights(for mapView: MapView) {
+        let hour = Calendar.current.component(.hour, from: Date())
+        print("🔆 configure3DLights called - lightsEnabled: \(lightsEnabled), hour: \(hour)")
+        
+        // Calculate dynamic light parameters based on time of day
+        let (azimuth, polarAngle, intensity, ambientColor) = getLightParameters(for: hour)
+        print("💡 Light params - azimuth: \(azimuth), polar: \(polarAngle), intensity: \(intensity)")
+        
+        do {
+            // Try multiple possible import names for Mapbox Standard style
+            let possibleImports = ["standard", "basemap", "mapbox"]
+            var lightPresetSet = false
+            
+            for importName in possibleImports {
+                do {
+                    let preset = lightsEnabled ? getCurrentLightPreset() : "night"
+                    try mapView.mapboxMap.setStyleImportConfigProperty(
+                        for: importName,
+                        config: "lightPreset",
+                        value: preset
+                    )
+                    print("✅ Successfully set lightPreset to: \(preset) using import: \(importName)")
+                    lightPresetSet = true
+                    break
+                } catch {
+                    print("⚠️ Failed to set lightPreset with import '\(importName)': \(error)")
+                }
+            }
+            
+            if !lightPresetSet {
+                print("❌ Could not set lightPreset with any known import name")
+            }
+            
+            // Also try the experimental style content API
+            mapView.mapboxMap.setMapStyleContent {
+                // Configure atmospheric rendering
+                Atmosphere()
+                    .range(start: 0, end: 12)
+                    .horizonBlend(0.1)
+                    .starIntensity(lightsEnabled ? 0.2 : 0.0)
+                    .color(StyleColor(red: 240, green: 196, blue: 152, alpha: 1)!)
+                    .highColor(StyleColor(red: 221, green: 209, blue: 197, alpha: 1)!)
+                    .spaceColor(StyleColor(red: 153, green: 180, blue: 197, alpha: 1)!)
+                
+                // Configure directional light (sun)
+                DirectionalLight(id: "directional-light")
+                    .intensity(lightsEnabled ? intensity : 0.1)
+                    .direction(azimuthal: azimuth, polar: polarAngle)
+                    .directionTransition(.zero)
+                    .castShadows(lightsEnabled)
+                    .shadowIntensity(lightsEnabled ? 1.0 : 0.0)
+                
+                // Configure ambient light
+                AmbientLight(id: "ambient-light")
+                    .color(ambientColor)
+                    .intensity(lightsEnabled ? 0.5 : 0.2)
+            }
+            print("✅ Successfully configured experimental 3D lights")
+            
+        } catch {
+            print("❌ Failed to configure 3D lights: \(error)")
+        }
+    }
+    
+    /// Get lighting parameters based on time of day
+    private func getLightParameters(for hour: Int) -> (azimuth: Double, polarAngle: Double, intensity: Double, ambientColor: UIColor) {
+        switch hour {
+        case 6..<8: // Dawn
+            return (azimuth: 120.0, polarAngle: 15.0, intensity: 0.3, ambientColor: UIColor(red: 1.0, green: 0.8, blue: 0.6, alpha: 1.0))
+        case 8..<10: // Morning
+            return (azimuth: 140.0, polarAngle: 25.0, intensity: 0.6, ambientColor: UIColor(red: 1.0, green: 0.95, blue: 0.8, alpha: 1.0))
+        case 10..<15: // Midday
+            return (azimuth: 180.0, polarAngle: 45.0, intensity: 0.8, ambientColor: UIColor.white)
+        case 15..<17: // Afternoon
+            return (azimuth: 220.0, polarAngle: 35.0, intensity: 0.7, ambientColor: UIColor(red: 1.0, green: 0.95, blue: 0.85, alpha: 1.0))
+        case 17..<19: // Dusk
+            return (azimuth: 250.0, polarAngle: 20.0, intensity: 0.4, ambientColor: UIColor(red: 1.0, green: 0.7, blue: 0.4, alpha: 1.0))
+        case 19..<22: // Evening
+            return (azimuth: 270.0, polarAngle: 10.0, intensity: 0.2, ambientColor: UIColor(red: 0.8, green: 0.6, blue: 0.8, alpha: 1.0))
+        default: // Night
+            return (azimuth: 0.0, polarAngle: 5.0, intensity: 0.1, ambientColor: UIColor(red: 0.5, green: 0.5, blue: 0.7, alpha: 1.0))
+        }
+    }
     
     /// Get current light preset based on time of day
     private func getCurrentLightPreset() -> String {
