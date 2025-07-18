@@ -9,6 +9,7 @@ struct WaitTime: Identifiable {
     let lastUpdated: Date
     let nextAvailableSlot: Int
     let status: FacilityStatus
+    let waitTimeRange: String?
     
     /// Status of the facility
     enum FacilityStatus {
@@ -55,6 +56,24 @@ struct WaitTime: Identifiable {
                 return "1 patient"
             } else {
                 return "\(patientsInLine) patients"
+            }
+        }
+    }
+    
+    /// Display text for wait time range (used for TAUC facilities)
+    var waitTimeDisplayText: String {
+        switch status {
+        case .closed:
+            return "N/A"
+        case .unavailable:
+            return "N/A"
+        case .unknown:
+            return "N/A"
+        case .open:
+            if let range = waitTimeRange, range != "N/A" {
+                return range
+            } else {
+                return "No wait"
             }
         }
     }

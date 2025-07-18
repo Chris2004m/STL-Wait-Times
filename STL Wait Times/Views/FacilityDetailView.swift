@@ -9,6 +9,7 @@ struct FacilityDetailView: View {
     @StateObject private var viewModel = FacilityDetailViewModel()
     @State private var showingWaitTimeLogger = false
     @State private var showingCallConfirmation = false
+    @State private var showingWaitTime = false // Toggle state: false = patients, true = time range
     
     var body: some View {
         ScrollView {
@@ -98,11 +99,43 @@ struct FacilityDetailView: View {
             if let waitTime = viewModel.currentWaitTime {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        // Show appropriate display text based on facility type
-                        Text(isTotalAccess ? waitTime.patientDisplayText : waitTime.displayText)
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundColor(waitTime.isStale ? .orange : .primary)
+                        // Check if this is University City for toggle functionality
+                        let isUniversityCity = facility.id == "total-access-13598"
+                        
+                        // Show appropriate display text based on facility type and toggle state
+                        Group {
+                            if isUniversityCity && showingWaitTime {
+                                // Show wait time range for University City when toggled
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(waitTime.waitTimeDisplayText)
+                                        .font(.title)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(waitTime.isStale ? .orange : .primary)
+                                    Text("minutes")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            } else {
+                                // Show patient count (default) or regular wait time for non-TAUC
+                                Text(isTotalAccess ? waitTime.patientDisplayText : waitTime.displayText)
+                                    .font(.title)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(waitTime.isStale ? .orange : .primary)
+                            }
+                        }
+                        .onTapGesture {
+                            // Only allow toggle for University City
+                            if isUniversityCity {
+                                // Haptic feedback
+                                let impact = UIImpactFeedbackGenerator(style: .light)
+                                impact.impactOccurred()
+                                
+                                // Toggle state
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    showingWaitTime.toggle()
+                                }
+                            }
+                        }
                         
                         HStack {
                             Text("Real-time data")

@@ -632,7 +632,8 @@ struct DashboardView: View {
                     patientsInLine: 0, // Default value
                     lastUpdated: Date(),
                     nextAvailableSlot: 0, // Default value
-                    status: .open // Default to open status
+                    status: .open, // Default to open status
+                    waitTimeRange: nil
                 )
                 return (facility.id, waitTime)
             }
@@ -650,7 +651,7 @@ struct DashboardView: View {
     // MARK: - Medical Facility Data
     private var facilityData: [MedicalFacility] {
         // Convert real facilities to MedicalFacility format with real wait times
-        let realFacilities = FacilityData.allFacilities.prefix(15).map { facility in
+        let realFacilities = FacilityData.allFacilities.map { facility in
             MedicalFacility(
                 id: facility.id,
                 name: getTAUCDisplayName(for: facility),

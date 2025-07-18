@@ -250,11 +250,8 @@ public class WaitTimeService: ObservableObject {
                     return self.fetchBatchWaitTimes(facilities: batch)
                 } else {
                     print("⏱️ Subsequent batch - adding 2s delay")
-                    return Timer.publish(every: 2.0, on: .main, in: .common)
-                        .first()
-                        .flatMap { _ in
-                            self.fetchBatchWaitTimes(facilities: batch)
-                        }
+                    return self.fetchBatchWaitTimes(facilities: batch)
+                        .delay(for: .seconds(2), scheduler: DispatchQueue.main)
                         .eraseToAnyPublisher()
                 }
             }
@@ -567,7 +564,8 @@ public class WaitTimeService: ObservableObject {
                                 patientsInLine: patientsCount,
                                 lastUpdated: Date(),
                                 nextAvailableSlot: 0,
-                                status: .open
+                                status: .open,
+                                waitTimeRange: nil
                             )
                         }
                     }
@@ -600,7 +598,8 @@ public class WaitTimeService: ObservableObject {
                                 patientsInLine: patientsCount,
                                 lastUpdated: Date(),
                                 nextAvailableSlot: 0,
-                                status: .open
+                                status: .open,
+                                waitTimeRange: nil
                             )
                         } else {
                             print("⚠️ \(facility.name): Rejected unreasonable JS patient count: \(patientsCount)")
@@ -650,7 +649,8 @@ public class WaitTimeService: ObservableObject {
                                     patientsInLine: patientCount,
                                     lastUpdated: Date(),
                                     nextAvailableSlot: 0,
-                                    status: .open
+                                    status: .open,
+                                    waitTimeRange: nil
                                 )
                             }
                         }
@@ -732,7 +732,8 @@ public class WaitTimeService: ObservableObject {
                                 patientsInLine: patientsCount,
                                 lastUpdated: Date(),
                                 nextAvailableSlot: 0,
-                                status: .open
+                                status: .open,
+                                waitTimeRange: nil
                             )
                         } else {
                             print("⚠️ \(facility.name): Rejected unreasonable patient count: \(patientsCount) from '\(matchedText)'")
@@ -769,7 +770,8 @@ public class WaitTimeService: ObservableObject {
                     patientsInLine: 0,
                     lastUpdated: Date(),
                     nextAvailableSlot: 0,
-                    status: .open
+                    status: .open,
+                    waitTimeRange: nil
                 )
             }
         }
@@ -824,7 +826,8 @@ public class WaitTimeService: ObservableObject {
                     patientsInLine: 0,
                     lastUpdated: Date(),
                     nextAvailableSlot: 0,
-                    status: .closed
+                    status: .closed,
+                    waitTimeRange: nil
                 )
             }
         }
@@ -1130,7 +1133,8 @@ public class WaitTimeService: ObservableObject {
                     patientsInLine: 0, // Not available from website
                     lastUpdated: Date(),
                     nextAvailableSlot: 0,
-                    status: .open
+                    status: .open,
+                    waitTimeRange: nil
                 )
             }
         }
@@ -1220,7 +1224,8 @@ public class WaitTimeService: ObservableObject {
             patientsInLine: patientsInLine,
             lastUpdated: Date(),
             nextAvailableSlot: waitMinutes + 10,
-            status: .open
+            status: .open,
+            waitTimeRange: nil
         )
         
         print("✅ \(facility.name): Mock data - \(waitMinutes) min wait, \(patientsInLine) patients")
@@ -1296,7 +1301,8 @@ public class WaitTimeService: ObservableObject {
                     patientsInLine: 0, // Not typically available in FHIR
                     lastUpdated: Date(),
                     nextAvailableSlot: 0,
-                    status: .open
+                    status: .open,
+                    waitTimeRange: nil
                 )
             }
         }
@@ -1360,6 +1366,7 @@ public class WaitTimeService: ObservableObject {
         var patientsInLine = 0
         var debugSource = "UNKNOWN"
         var individualQueueCounts: [Int] = []
+        var waitTimeRange: String? = nil
         
         // First, try to get patients in line from individual appointment queues (most accurate)
         if let appointmentQueues = response.appointmentQueues {
@@ -1377,6 +1384,12 @@ public class WaitTimeService: ObservableObject {
                     print("         - currentWaitRange: \(queueWaits.currentWaitRange ?? "nil")")
                     patientsInLine += queuePatients
                     individualQueueCounts.append(queuePatients)
+                    
+                    // Capture wait time range from first queue with valid data
+                    if waitTimeRange == nil, let range = queueWaits.currentWaitRange, range != "N/A" {
+                        waitTimeRange = range
+                        print("         → Captured waitTimeRange: '\(range)'")
+                    }
                 } else {
                     print("         - queueWaits: NIL")
                     individualQueueCounts.append(0)
@@ -1384,6 +1397,7 @@ public class WaitTimeService: ObservableObject {
             }
             print("   👥 TOTAL Patients in line (from appointment queues): \(patientsInLine)")
             print("   🔢 Individual queue counts: \(individualQueueCounts)")
+            print("   ⏱️ Wait time range: \(waitTimeRange ?? "nil")")
             
             // CRITICAL VALIDATION: Ensure we're not accidentally using queue_total
             if patientsInLine == hospitalWaits.queueTotal {
@@ -1515,7 +1529,8 @@ public class WaitTimeService: ObservableObject {
             patientsInLine: patientsInLine, // Primary data we want to display
             lastUpdated: currentTime,
             nextAvailableSlot: nextAvailableSlot,
-            status: status
+            status: status,
+            waitTimeRange: waitTimeRange
         )
         
         if isKirkwood {
@@ -1730,7 +1745,8 @@ public class WaitTimeService: ObservableObject {
             patientsInLine: patientsInLine, // Use scraped data
             lastUpdated: Date(),
             nextAvailableSlot: existingWaitTime?.nextAvailableSlot ?? 0,
-            status: patientsInLine >= 0 ? .open : .closed
+            status: patientsInLine >= 0 ? .open : .closed,
+            waitTimeRange: existingWaitTime?.waitTimeRange // Preserve existing wait time range
         )
         
         // Update the published wait times
@@ -1762,7 +1778,8 @@ public class WaitTimeService: ObservableObject {
             patientsInLine: patientsInLine,
             lastUpdated: Date(),
             nextAvailableSlot: nextAvailableSlot,
-            status: .open
+            status: .open,
+            waitTimeRange: nil
         )
     }
     
@@ -1788,7 +1805,8 @@ public class WaitTimeService: ObservableObject {
             patientsInLine: patientsInLine,
             lastUpdated: Date(),
             nextAvailableSlot: 0,
-            status: .open
+            status: .open,
+            waitTimeRange: nil
         )
     }
     
@@ -1852,7 +1870,8 @@ public class WaitTimeService: ObservableObject {
                 patientsInLine: max(0, waitMinutes / 8),
                 lastUpdated: Date(),
                 nextAvailableSlot: waitMinutes + 10,
-                status: .open
+                status: .open,
+                waitTimeRange: nil
             )
         }
         
@@ -1865,7 +1884,8 @@ public class WaitTimeService: ObservableObject {
                 patientsInLine: 0,
                 lastUpdated: Date(),
                 nextAvailableSlot: 0,
-                status: .open
+                status: .open,
+                waitTimeRange: nil
             )
         }
         
