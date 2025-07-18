@@ -70,7 +70,7 @@ struct FlyToTrigger: Equatable {
 ///     }
 /// )
 /// ```
-struct MapboxView: UIViewRepresentable {
+struct MapboxView: UIViewRepresentable, Equatable {
     
     // MARK: - Coordinator
     
@@ -156,8 +156,28 @@ struct MapboxView: UIViewRepresentable {
     /// Trigger for fly-to animation
     var flyToTrigger: FlyToTrigger?
     
+    /// Trigger for forcing recenter even when coordinates haven't changed
+    var recenterTrigger: UUID?
+    
     /// Mapbox access token
     private let accessToken = "pk.eyJ1IjoiY21pbHRvbjQiLCJhIjoiY21kNTVkcjh1MG05eTJrb21qeHB0aXo4bCJ9.5vv9akWMhonZ_J3ftkUKRg"
+    
+    // MARK: - Equatable Implementation
+    
+    static func == (lhs: MapboxView, rhs: MapboxView) -> Bool {
+        // Compare the center coordinates to detect region changes
+        let centerChanged = abs(lhs.coordinateRegion.center.latitude - rhs.coordinateRegion.center.latitude) > 0.0001 ||
+                           abs(lhs.coordinateRegion.center.longitude - rhs.coordinateRegion.center.longitude) > 0.0001
+        
+        let spanChanged = abs(lhs.coordinateRegion.span.latitudeDelta - rhs.coordinateRegion.span.latitudeDelta) > 0.0001 ||
+                         abs(lhs.coordinateRegion.span.longitudeDelta - rhs.coordinateRegion.span.longitudeDelta) > 0.0001
+        
+        // Check if recenter trigger changed
+        let triggerChanged = lhs.recenterTrigger != rhs.recenterTrigger
+        
+        // Return false if anything changed (this will trigger updateUIView)
+        return !centerChanged && !spanChanged && lhs.annotations.count == rhs.annotations.count && !triggerChanged
+    }
     
     // MARK: - UIViewRepresentable Implementation
     
@@ -187,6 +207,8 @@ struct MapboxView: UIViewRepresentable {
     }
     
     func updateUIView(_ mapView: MapView, context: Context) {
+        print("🔄 MapboxView updateUIView called")
+        
         // Update camera region if changed
         updateCameraRegion(mapView: mapView)
         
@@ -296,11 +318,20 @@ struct MapboxView: UIViewRepresentable {
         let currentCenter = mapView.mapboxMap.cameraState.center
         let currentZoom = mapView.mapboxMap.cameraState.zoom
         
+        print("🗺️ MapboxView updateCameraRegion called")
+        print("🗺️ Current center: \(currentCenter.latitude), \(currentCenter.longitude)")
+        print("🗺️ Target center: \(coordinateRegion.center.latitude), \(coordinateRegion.center.longitude)")
+        
         // Check if region has changed significantly
         let centerDistance = coordinateRegion.center.distance(from: currentCenter)
         let zoomLevel = getZoomLevel(from: coordinateRegion.span)
         
+        print("🗺️ Distance: \(centerDistance) meters")
+        print("🗺️ Current zoom: \(currentZoom), Target zoom: \(zoomLevel)")
+        
         if centerDistance > 100 || abs(currentZoom - zoomLevel) > 0.5 {
+            print("✅ Updating MapboxView camera (distance: \(centerDistance)m)")
+            
             let camera = CameraOptions(
                 center: coordinateRegion.center,
                 zoom: zoomLevel,
@@ -310,10 +341,14 @@ struct MapboxView: UIViewRepresentable {
             
             // Use smooth animation for location updates
             if centerDistance > 500 { // Larger distance changes get animated
+                print("🎬 Using animated camera update")
                 mapView.camera.ease(to: camera, duration: 1.2)
             } else {
+                print("⚡ Using instant camera update")
                 mapView.mapboxMap.setCamera(to: camera)
             }
+        } else {
+            print("⚠️ Not updating camera - distance too small (\(centerDistance)m) or zoom difference too small")
         }
     }
     

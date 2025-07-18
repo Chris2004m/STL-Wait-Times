@@ -8,17 +8,40 @@ struct WaitTime: Identifiable {
     let patientsInLine: Int
     let lastUpdated: Date
     let nextAvailableSlot: Int
+    let status: FacilityStatus
+    
+    /// Status of the facility
+    enum FacilityStatus {
+        case open
+        case closed
+        case unavailable
+        case unknown
+    }
     
     var displayText: String {
-        if waitMinutes == 0 {
-            return "No wait"
-        } else if waitMinutes < 60 {
-            return "\(waitMinutes) min"
-        } else {
-            let hours = waitMinutes / 60
-            let minutes = waitMinutes % 60
-            return minutes > 0 ? "\(hours)h \(minutes)m" : "\(hours)h"
+        switch status {
+        case .closed:
+            return "N/A"
+        case .unavailable:
+            return "N/A"
+        case .unknown:
+            return "N/A"
+        case .open:
+            if waitMinutes == 0 {
+                return "No wait"
+            } else if waitMinutes < 60 {
+                return "\(waitMinutes) min"
+            } else {
+                let hours = waitMinutes / 60
+                let minutes = waitMinutes % 60
+                return minutes > 0 ? "\(hours)h \(minutes)m" : "\(hours)h"
+            }
         }
+    }
+    
+    /// Whether this facility is currently available for new patients
+    var isAvailable: Bool {
+        return status == .open
     }
     
     var isStale: Bool {

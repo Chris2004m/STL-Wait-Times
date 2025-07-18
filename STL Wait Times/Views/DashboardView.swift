@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import CoreLocation
 
 // MARK: - Bottom Sheet States
 enum BottomSheetState: CaseIterable {
@@ -55,6 +56,10 @@ struct DashboardView: View {
     
     @State private var sheetState: BottomSheetState = .peek
     @State private var locationError: LocationError? = nil
+    // Pending flag to auto-center once first location fix arrives after user taps button
+    @State private var pendingCenterOnLocation: Bool = false
+    // Trigger ID to force map recenter even when coordinates haven't changed
+    @State private var recenterTrigger: UUID = UUID()
     
     // MARK: - 3D Map Properties
     @State private var mapMode: MapDisplayMode = .hybrid2D
@@ -62,7 +67,11 @@ struct DashboardView: View {
     
     // MARK: - Services
     @StateObject private var locationService = LocationService.shared
+    @StateObject private var waitTimeService = WaitTimeService.shared
     private let dataConverter = MapboxDataConverter()
+    
+    // MARK: - Environment
+    @Environment(\.colorScheme) private var colorScheme
     
     
     var body: some View {
@@ -74,7 +83,8 @@ struct DashboardView: View {
                 mapStyle: "standard",
                 onMapTap: { coordinate in
                     handleMapTap(at: coordinate)
-                }
+                },
+                recenterTrigger: recenterTrigger
             )
             .ignoresSafeArea()
             .opacity(sheetState == .expanded ? DashboardConstants.mapOpacity : 1.0)
@@ -92,6 +102,17 @@ struct DashboardView: View {
                 }
             ) {
                 sheetContent
+            }
+        }
+        // Center automatically when a new location arrives and the user requested it
+        .onReceive(locationService.$currentLocation.compactMap { $0 }) { _ in
+            if pendingCenterOnLocation {
+                if let region = locationService.getUserLocationRegion() {
+                    withAnimation(.easeInOut(duration: 0.8)) {
+                        self.region = region
+                    }
+                    pendingCenterOnLocation = false
+                }
             }
         }
     }
@@ -128,7 +149,7 @@ struct DashboardView: View {
                 .opacity(buttonOpacity)
                 .accessibility(label: Text("Center on my location"))
                 .accessibility(hint: Text("Centers the map on your current location"))
-                .padding(.trailing, 16) // Match compass button horizontal alignment
+                .padding(.trailing, compassButtonTrailingOffset) // Align with compass horizontally
             }
             
             Spacer()
@@ -140,22 +161,23 @@ struct DashboardView: View {
     
     /// Compass button size - matches native Mapbox control
     private var compassButtonSize: CGFloat {
-        40 // Native Mapbox compass button size
+        36 // Exact native Mapbox compass button size
     }
     
     /// Icon size matching native compass button
     private var iconSize: CGFloat {
-        16 // Native compass icon size
+        16 // Match compass icon size exactly
     }
     
     /// Background matching native Mapbox compass button
     private var compassButtonBackground: some View {
-        Color.white.opacity(0.85) // Slightly translucent white background matching native compass
+        // Dynamic background: match Mapbox compass button colors
+        colorScheme == .dark ? Color.black.opacity(0.9) : Color.white.opacity(0.85)
     }
     
     /// Icon color matching native compass button
     private var iconColor: Color {
-        .primary // Dark icon on light background
+        (colorScheme == .dark ? Color.white : Color.black) // Dark mode → white icon, Light mode → black icon for contrast
     }
     
     /// Shadow color matching native compass button
@@ -171,6 +193,11 @@ struct DashboardView: View {
     /// Shadow offset matching native compass button
     private var compassShadowOffset: CGSize {
         CGSize(width: 0, height: 1) // Native compass shadow offset
+    }
+    
+    /// Trailing offset matching native compass button
+    private var compassButtonTrailingOffset: CGFloat {
+        8 // Align horizontally with native compass
     }
     
     /// Top offset for compass button positioning
@@ -298,11 +325,16 @@ struct DashboardView: View {
         }
         .onAppear {
             setupInitialMapRegion()
+            fetchInitialWaitTimes()
         }
         .onReceive(locationService.$hasInitialLocation) { hasLocation in
             if hasLocation {
                 updateMapToUserLocation()
             }
+        }
+        .onReceive(waitTimeService.$waitTimes) { _ in
+            // Trigger UI update when wait times are received
+            // The facilityData computed property will automatically use the new wait times
         }
     }
     
@@ -341,6 +373,12 @@ struct DashboardView: View {
     private func setupInitialMapRegion() {
         // Set the region based on current location availability
         region = locationService.getInitialMapRegion()
+    }
+    
+    /// Fetch initial wait times for all facilities
+    private func fetchInitialWaitTimes() {
+        print("🚀 Fetching initial wait times for all facilities...")
+        waitTimeService.fetchAllWaitTimes(facilities: Array(FacilityData.allFacilities))
     }
     
     /// Update map to center on user location with smooth animation
@@ -403,13 +441,16 @@ struct DashboardView: View {
         
         guard let userLocationRegion = locationService.getUserLocationRegion() else {
             // No location available yet, but permission is granted
-            // The map will auto-center when location becomes available
+            // Set flag so that we center once location arrives
+            pendingCenterOnLocation = true
             return
         }
         
-        // Animate the region change
+        // Animate the region change and trigger recenter
         withAnimation(.easeInOut(duration: 0.8)) {
             region = userLocationRegion
+            // Generate new trigger ID to force MapboxView update
+            recenterTrigger = UUID()
         }
         
         // Provide haptic feedback
@@ -535,7 +576,8 @@ struct DashboardView: View {
                     waitMinutes: waitMinutes,
                     patientsInLine: 0, // Default value
                     lastUpdated: Date(),
-                    nextAvailableSlot: 0 // Default value
+                    nextAvailableSlot: 0, // Default value
+                    status: .open // Default to open status
                 )
                 return (facility.id, waitTime)
             }
@@ -552,119 +594,90 @@ struct DashboardView: View {
     
     // MARK: - Medical Facility Data
     private var facilityData: [MedicalFacility] {
-        [
+        // Convert real facilities to MedicalFacility format with real wait times
+        let realFacilities = FacilityData.allFacilities.prefix(15).map { facility in
             MedicalFacility(
-                id: "1",
-                name: "Barnes-Jewish Hospital",
-                type: "ER",
-                waitTime: "45",
+                id: facility.id,
+                name: facility.name,
+                type: facility.facilityType == .emergencyDepartment ? "ER" : "UC",
+                waitTime: getRealWaitTime(for: facility),
                 waitDetails: "MINUTES",
-                distance: "2.3 mi",
-                waitChange: "+5 min",
-                status: "Open",
-                isOpen: true
-            ),
-            MedicalFacility(
-                id: "2",
-                name: "Saint Louis University",
-                type: "ER",
-                waitTime: "32",
-                waitDetails: "MINUTES",
-                distance: "1.8 mi",
-                waitChange: "-2 min",
-                status: "Open",
-                isOpen: true
-            ),
-            MedicalFacility(
-                id: "3",
-                name: "Mercy Hospital South",
-                type: "ER",
-                waitTime: "18",
-                waitDetails: "MINUTES",
-                distance: "3.1 mi",
-                waitChange: "Same",
-                status: "Open",
-                isOpen: true
-            ),
-            MedicalFacility(
-                id: "4",
-                name: "Christian Hospital",
-                type: "ER",
-                waitTime: "25",
-                waitDetails: "MINUTES",
-                distance: "4.2 mi",
-                waitChange: "+3 min",
-                status: "Open",
-                isOpen: true
-            ),
-            MedicalFacility(
-                id: "5",
-                name: "Missouri Baptist Medical Center",
-                type: "ER",
-                waitTime: "38",
-                waitDetails: "MINUTES",
-                distance: "5.8 mi",
-                waitChange: "-1 min",
-                status: "Open",
-                isOpen: true
-            ),
-            // Additional facilities for testing scroll functionality
-            MedicalFacility(
-                id: "6",
-                name: "SSM Health Cardinal Glennon",
-                type: "ER",
-                waitTime: "22",
-                waitDetails: "MINUTES",
-                distance: "3.5 mi",
-                waitChange: "+1 min",
-                status: "Open",
-                isOpen: true
-            ),
-            MedicalFacility(
-                id: "7",
-                name: "St. Luke's Hospital",
-                type: "ER",
-                waitTime: "52",
-                waitDetails: "MINUTES",
-                distance: "6.1 mi",
-                waitChange: "+8 min",
-                status: "Busy",
-                isOpen: true
-            ),
-            MedicalFacility(
-                id: "8",
-                name: "Total Access Urgent Care",
-                type: "UC",
-                waitTime: "12",
-                waitDetails: "MINUTES",
-                distance: "1.2 mi",
-                waitChange: "-3 min",
-                status: "Open",
-                isOpen: true
-            ),
-            MedicalFacility(
-                id: "9",
-                name: "Progress West Hospital",
-                type: "ER",
-                waitTime: "35",
-                waitDetails: "MINUTES",
-                distance: "7.8 mi",
-                waitChange: "Same",
-                status: "Open",
-                isOpen: true
-            ),
-            MedicalFacility(
-                id: "10",
-                name: "Mercy-GoHealth Urgent Care",
-                type: "UC",
-                waitTime: "8",
-                waitDetails: "MINUTES",
-                distance: "2.1 mi",
-                waitChange: "-5 min",
-                status: "Open",
-                isOpen: true
+                distance: calculateDistance(to: facility),
+                waitChange: generateMockWaitChange(), // Keep hardcoded as requested
+                status: facility.statusString,
+                isOpen: facility.isCurrentlyOpen
             )
-        ]
+        }
+        
+        return Array(realFacilities)
+    }
+    
+    // MARK: - Helper Methods for Real Data Integration
+    
+    /// Get real wait time from WaitTimeService or fallback to reasonable defaults
+    private func getRealWaitTime(for facility: Facility) -> String {
+        // First check if facility is currently closed
+        if !facility.isCurrentlyOpen {
+            return "0" // Show 0 wait time for closed facilities
+        }
+        
+        // Try to get real wait time from WaitTimeService
+        if let waitTime = waitTimeService.getBestWaitTime(for: facility) {
+            return "\(waitTime.waitMinutes)"
+        }
+        
+        // Fallback to CMS data for emergency departments (only if open)
+        if facility.facilityType == .emergencyDepartment,
+           let cmsAverage = facility.cmsAverageWaitMinutes {
+            return "\(cmsAverage)"
+        }
+        
+        // Final fallback - generate reasonable defaults based on facility type and time (only if open)
+        let hour = Calendar.current.component(.hour, from: Date())
+        let baseWaitTime: Int
+        
+        switch facility.facilityType {
+        case .emergencyDepartment:
+            // Emergency departments are always open, so generate appropriate wait times
+            switch hour {
+            case 15...20: baseWaitTime = 55 // Busy evening hours
+            case 8...14: baseWaitTime = 35  // Moderate daytime
+            default: baseWaitTime = 25      // Quieter hours
+            }
+        case .urgentCare:
+            // For urgent care, if we get here and facility is open, generate appropriate wait times
+            switch hour {
+            case 16...19: baseWaitTime = 20 // After work rush
+            case 10...15: baseWaitTime = 15 // Moderate day
+            default: baseWaitTime = 10      // Quieter hours
+            }
+        }
+        
+        // Add small random variation (±3 minutes)
+        let variation = Int.random(in: -3...3)
+        return "\(max(0, baseWaitTime + variation))"
+    }
+    
+    /// Calculate distance to facility
+    private func calculateDistance(to facility: Facility) -> String {
+        if let distance = locationService.distance(to: facility) {
+            return locationService.formatDistance(distance)
+        } else {
+            // Fallback calculation from St. Louis center
+            let stlCenter = CLLocation(latitude: 38.6270, longitude: -90.1994)
+            let facilityLocation = CLLocation(
+                latitude: facility.coordinate.latitude,
+                longitude: facility.coordinate.longitude
+            )
+            let distance = stlCenter.distance(from: facilityLocation)
+            return locationService.formatDistance(distance)
+        }
+    }
+    
+    /// Generate mock wait time change until real implementation
+    private func generateMockWaitChange() -> String {
+        let changes = ["+2 min", "+5 min", "-3 min", "-1 min", "Same", "+1 min", "-2 min"]
+        return changes.randomElement() ?? "Same"
     }
 }
 

@@ -21,7 +21,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.6470, longitude: -90.2650),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12600/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -36,7 +37,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.6270, longitude: -90.3400),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12601/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -51,7 +53,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.5989, longitude: -90.2951),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12602/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -66,7 +69,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.5920, longitude: -90.2390),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12603/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -81,7 +85,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.5950, longitude: -90.2280),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12604/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         // Richmond Heights/Clayton Area
@@ -97,7 +102,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.6150, longitude: -90.3250),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12605/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -112,7 +118,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.6420, longitude: -90.3180),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12606/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -127,7 +134,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.6560, longitude: -90.3090),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12607/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         // North County
@@ -143,7 +151,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.7890, longitude: -90.3220),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12608/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -158,7 +167,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.7720, longitude: -90.3680),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12609/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -173,7 +183,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.7440, longitude: -90.3050),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12610/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         // South County
@@ -189,7 +200,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.5520, longitude: -90.3380),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12611/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -204,7 +216,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.5180, longitude: -90.2890),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12612/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -219,7 +232,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.5080, longitude: -90.3520),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12613/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         // West County
@@ -235,7 +249,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.5840, longitude: -90.4070),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12614/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -250,7 +265,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.6100, longitude: -90.4350),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12616/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -265,7 +281,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.6630, longitude: -90.5770),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12617/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -280,7 +297,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.5950, longitude: -90.5460),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12618/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -295,7 +313,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.6040, longitude: -90.5890),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12619/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -310,7 +329,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.5800, longitude: -90.6630),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12620/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         // St. Charles County
@@ -326,7 +346,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.7820, longitude: -90.6230),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12621/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -341,7 +362,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.8100, longitude: -90.7030),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12622/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -356,7 +378,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.7740, longitude: -90.4970),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12623/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -371,7 +394,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.8120, longitude: -90.8530),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12624/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -386,7 +410,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.7870, longitude: -90.7840),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12625/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -401,7 +426,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.7580, longitude: -90.7270),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12626/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         // Illinois Metro East
@@ -417,7 +443,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.8780, longitude: -90.1840),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/13110/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -432,7 +459,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.8110, longitude: -89.9530),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/13242/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -447,7 +475,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.7010, longitude: -90.1480),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/13598/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         // Jefferson County
@@ -463,7 +492,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.4330, longitude: -90.3770),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/15883/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         Facility(
@@ -478,7 +508,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.3520, longitude: -90.3720),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/15884/waits",
-            websiteURL: nil
+            websiteURL: nil,
+            operatingHours: .standardUrgentCare
         ),
         
         // MARK: - Mercy-GoHealth Urgent Care Locations (54 locations total)
@@ -934,7 +965,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.6278, longitude: -90.3420),
             cmsAverageWaitMinutes: 45, // CMS average for comparison
             apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-st-marys-stl",
-            websiteURL: "https://www.ssmhealth.com/locations/st-louis/st-marys-hospital-st-louis"
+            websiteURL: "https://www.ssmhealth.com/locations/st-louis/st-marys-hospital-st-louis",
+            operatingHours: .emergency24x7
         ),
         
         // SSM Health St. Joseph Hospital - St. Charles (Emergency Department)
@@ -950,7 +982,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.7833, longitude: -90.4967),
             cmsAverageWaitMinutes: 52, // CMS average for comparison
             apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-st-joseph-stc",
-            websiteURL: "https://www.ssmhealth.com/locations/location-details/emergency-room-st-joseph-hospital-st-charles"
+            websiteURL: "https://www.ssmhealth.com/locations/location-details/emergency-room-st-joseph-hospital-st-charles",
+            operatingHours: .emergency24x7
         ),
         
         // SSM Health DePaul Hospital (Emergency Department)
@@ -966,7 +999,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.7600, longitude: -90.4100),
             cmsAverageWaitMinutes: 38, // CMS average for comparison
             apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-depaul",
-            websiteURL: "https://www.ssmhealth.com/locations/bridgeton/depaul-hospital"
+            websiteURL: "https://www.ssmhealth.com/locations/bridgeton/depaul-hospital",
+            operatingHours: .emergency24x7
         ),
         
         // SSM Health St. Clare Hospital - Fenton (Emergency Department)
@@ -982,7 +1016,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.5130, longitude: -90.4350),
             cmsAverageWaitMinutes: 41, // CMS average for comparison
             apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-st-clare",
-            websiteURL: "https://www.ssmhealth.com/locations/fenton/st-clare-hospital"
+            websiteURL: "https://www.ssmhealth.com/locations/fenton/st-clare-hospital",
+            operatingHours: .emergency24x7
         ),
         
         // SSM Health St. Mary's Hospital - Madison, WI (Emergency Department)
@@ -998,7 +1033,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 43.0642, longitude: -89.4012),
             cmsAverageWaitMinutes: 35, // CMS average for comparison
             apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-st-marys-mad",
-            websiteURL: "https://www.ssmhealth.com/locations/location-details/emergency-room-st-marys-hospital-madison"
+            websiteURL: "https://www.ssmhealth.com/locations/location-details/emergency-room-st-marys-hospital-madison",
+            operatingHours: .emergency24x7
         ),
         
         // SSM Health Urgent Care Locations
@@ -1016,7 +1052,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.6270, longitude: -90.3400),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-uc-clayton",
-            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics"
+            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics",
+            operatingHours: .standardUrgentCare
         ),
         
         // SSM Health Urgent Care - O'Fallon
@@ -1032,7 +1069,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.8100, longitude: -90.7030),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-uc-ofallon",
-            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics"
+            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics",
+            operatingHours: .standardUrgentCare
         ),
         
         // SSM Health Urgent Care - Florissant
@@ -1048,7 +1086,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.7890, longitude: -90.3220),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-uc-florissant",
-            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics"
+            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics",
+            operatingHours: .standardUrgentCare
         ),
         
         // SSM Health Urgent Care - Fenton
@@ -1064,7 +1103,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.5130, longitude: -90.4350),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-uc-fenton",
-            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics"
+            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics",
+            operatingHours: .standardUrgentCare
         ),
         
         // SSM Health Urgent Care - Wentzville
@@ -1080,7 +1120,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.8117, longitude: -90.8526),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-uc-wentzville",
-            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics"
+            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics",
+            operatingHours: .standardUrgentCare
         ),
         
         // SSM Health Express Clinic - Bridgeton
@@ -1096,7 +1137,8 @@ struct FacilityData {
             coordinate: CLLocationCoordinate2D(latitude: 38.7600, longitude: -90.4100),
             cmsAverageWaitMinutes: nil,
             apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-ec-bridgeton",
-            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics"
+            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics",
+            operatingHours: .standardUrgentCare
         )
     ]
     

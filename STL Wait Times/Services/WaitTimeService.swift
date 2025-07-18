@@ -578,7 +578,8 @@ class WaitTimeService: ObservableObject {
                     waitMinutes: waitMinutes,
                     patientsInLine: 0, // Not available from website
                     lastUpdated: Date(),
-                    nextAvailableSlot: 0
+                    nextAvailableSlot: 0,
+                    status: .open
                 )
             }
         }
@@ -667,7 +668,8 @@ class WaitTimeService: ObservableObject {
             waitMinutes: waitMinutes,
             patientsInLine: patientsInLine,
             lastUpdated: Date(),
-            nextAvailableSlot: waitMinutes + 10
+            nextAvailableSlot: waitMinutes + 10,
+            status: .open
         )
         
         print("✅ \(facility.name): Mock data - \(waitMinutes) min wait, \(patientsInLine) patients")
@@ -742,7 +744,8 @@ class WaitTimeService: ObservableObject {
                     waitMinutes: waitMinutes,
                     patientsInLine: 0, // Not typically available in FHIR
                     lastUpdated: Date(),
-                    nextAvailableSlot: 0
+                    nextAvailableSlot: 0,
+                    status: .open
                 )
             }
         }
@@ -776,24 +779,51 @@ class WaitTimeService: ObservableObject {
     private func parseClockwiseMDWaitTime(from response: ClockwiseMDResponse, for facility: Facility) -> WaitTime? {
         let hospitalWaits = response.hospitalWaits
         
-        // Extract wait time from the response
+        // Extract wait time and status from the response
         let waitMinutes: Int
+        let status: WaitTime.FacilityStatus
+        
         if let currentWait = hospitalWaits.currentWait {
-            // Parse wait time from string like "4 - 19" or "15"
-            if currentWait.contains(" - ") {
+            // Check for closed/unavailable status first
+            let currentWaitLowercased = currentWait.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            if currentWaitLowercased.contains("closed") || currentWaitLowercased == "closed" {
+                print("🔒 \(facility.name): Facility is closed - currentWait: '\(currentWait)'")
+                waitMinutes = 0
+                status = .closed
+            } else if currentWaitLowercased.contains("n/a") || currentWaitLowercased == "n/a" || 
+                      currentWaitLowercased.contains("unavailable") || currentWaitLowercased == "unavailable" {
+                print("❌ \(facility.name): Wait time unavailable - currentWait: '\(currentWait)'")
+                waitMinutes = 0
+                status = .unavailable
+            } else if currentWait.contains(" - ") {
+                // Parse wait time range like "4 - 19"
                 let components = currentWait.components(separatedBy: " - ")
                 if let minWait = Int(components[0]), let maxWait = Int(components[1]) {
                     waitMinutes = (minWait + maxWait) / 2 // Use average
+                    status = .open
+                    print("✅ \(facility.name): Range wait time - \(minWait)-\(maxWait) min (avg: \(waitMinutes))")
                 } else {
+                    print("⚠️ \(facility.name): Could not parse range wait time: '\(currentWait)'")
                     waitMinutes = 0
+                    status = .unknown
                 }
             } else if let singleWait = Int(currentWait) {
+                // Parse single wait time like "15"
                 waitMinutes = singleWait
+                status = .open
+                print("✅ \(facility.name): Single wait time - \(waitMinutes) min")
             } else {
+                // Unparseable format
+                print("❓ \(facility.name): Unknown wait time format: '\(currentWait)'")
                 waitMinutes = 0
+                status = .unknown
             }
         } else {
+            // No currentWait field in response
+            print("❓ \(facility.name): No currentWait field in API response")
             waitMinutes = 0
+            status = .unknown
         }
         
         let patientsInLine = hospitalWaits.queueLength ?? 0
@@ -804,7 +834,8 @@ class WaitTimeService: ObservableObject {
             waitMinutes: waitMinutes,
             patientsInLine: patientsInLine,
             lastUpdated: Date(),
-            nextAvailableSlot: nextAvailableSlot
+            nextAvailableSlot: nextAvailableSlot,
+            status: status
         )
     }
     
@@ -830,7 +861,8 @@ class WaitTimeService: ObservableObject {
             waitMinutes: waitMinutes,
             patientsInLine: patientsInLine,
             lastUpdated: Date(),
-            nextAvailableSlot: nextAvailableSlot
+            nextAvailableSlot: nextAvailableSlot,
+            status: .open
         )
     }
     
@@ -855,7 +887,8 @@ class WaitTimeService: ObservableObject {
             waitMinutes: waitMinutes,
             patientsInLine: patientsInLine,
             lastUpdated: Date(),
-            nextAvailableSlot: 0
+            nextAvailableSlot: 0,
+            status: .open
         )
     }
     
@@ -918,7 +951,8 @@ class WaitTimeService: ObservableObject {
                 waitMinutes: max(0, waitMinutes),
                 patientsInLine: max(0, waitMinutes / 8),
                 lastUpdated: Date(),
-                nextAvailableSlot: waitMinutes + 10
+                nextAvailableSlot: waitMinutes + 10,
+                status: .open
             )
         }
         
@@ -930,7 +964,8 @@ class WaitTimeService: ObservableObject {
                 waitMinutes: cmsAverage,
                 patientsInLine: 0,
                 lastUpdated: Date(),
-                nextAvailableSlot: 0
+                nextAvailableSlot: 0,
+                status: .open
             )
         }
         
