@@ -1,6 +1,8 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import MapboxNavigationCore
+import MapboxNavigationUIKit
 
 // MARK: - Bottom Sheet States
 enum BottomSheetState: CaseIterable {
@@ -78,7 +80,9 @@ struct DashboardView: View {
     
     
     var body: some View {
-        ZStack {
+        print("📱 DashboardView: Creating view body")
+        
+        return ZStack {
             // Background Map - Enhanced Mapbox View
             MapboxView(
                 coordinateRegion: $region,
@@ -88,7 +92,8 @@ struct DashboardView: View {
                 onMapTap: { coordinate in
                     handleMapTap(at: coordinate)
                 },
-                recenterTrigger: recenterTrigger
+                recenterTrigger: recenterTrigger,
+                navigationRoute: nil
             )
             .ignoresSafeArea()
             .opacity(sheetState == .expanded ? DashboardConstants.mapOpacity : 1.0)
@@ -110,6 +115,12 @@ struct DashboardView: View {
             ) {
                 sheetContent
             }
+        }
+        .onAppear {
+            print("✅ DashboardView: DashboardView appeared")
+        }
+        .onDisappear {
+            print("❌ DashboardView: DashboardView disappeared")
         }
         // Center automatically when a new location arrives and the user requested it
         .onReceive(locationService.$currentLocation.compactMap { $0 }) { _ in
@@ -168,7 +179,7 @@ struct DashboardView: View {
                     Group {
                         if locationService.isLoadingLocation {
                             ProgressView()
-                                .scaleEffect(0.8)
+                                .scaleEffect(0.8 as CGFloat)
                                 .progressViewStyle(CircularProgressViewStyle(tint: iconColor))
                         } else {
                             Image(systemName: locationButtonIcon)
@@ -360,6 +371,7 @@ struct DashboardView: View {
             Spacer(minLength: 0)
         }
         .onAppear {
+            print("✅ DashboardView: Sheet content appeared - setting up initial data")
             setupInitialMapRegion()
             fetchInitialWaitTimes()
         }
@@ -407,8 +419,10 @@ struct DashboardView: View {
     
     /// Set up initial map region - use user location if available, otherwise fallback to St. Louis
     private func setupInitialMapRegion() {
+        print("🗺️ DashboardView: Setting up initial map region")
         // Set the region based on current location availability
         region = locationService.getInitialMapRegion()
+        print("🗺️ DashboardView: Initial map region set to: \(region.center.latitude), \(region.center.longitude)")
     }
     
     /// Fetch initial wait times for all facilities
@@ -639,10 +653,10 @@ struct DashboardView: View {
         let realFacilities = FacilityData.allFacilities.prefix(15).map { facility in
             MedicalFacility(
                 id: facility.id,
-                name: facility.name,
-                type: facility.facilityType == .emergencyDepartment ? "ER" : "UC",
+                name: getTAUCDisplayName(for: facility),
+                type: facility.facilityType == .emergencyDepartment ? "ER" : (facility.id.hasPrefix("total-access") ? "TAUC" : "UC"),
                 waitTime: getRealWaitTime(for: facility),
-                waitDetails: "MINUTES",
+                waitDetails: getWaitDetails(for: facility),
                 distance: calculateDistance(to: facility),
                 waitChange: generateMockWaitChange(), // Keep hardcoded as requested
                 status: facility.statusString,
@@ -659,12 +673,17 @@ struct DashboardView: View {
     private func getRealWaitTime(for facility: Facility) -> String {
         // First check if facility is currently closed
         if !facility.isCurrentlyOpen {
-            return "0" // Show 0 wait time for closed facilities
+            return "0" // Show 0 for closed facilities
         }
         
         // Try to get real wait time from WaitTimeService
         if let waitTime = waitTimeService.getBestWaitTime(for: facility) {
-            return "\(waitTime.waitMinutes)"
+            // For TAUC facilities, show patient count instead of wait time
+            if facility.id.hasPrefix("total-access") {
+                return "\(waitTime.patientsInLine)"
+            } else {
+                return "\(waitTime.waitMinutes)"
+            }
         }
         
         // Fallback to CMS data for emergency departments (only if open)
@@ -673,30 +692,35 @@ struct DashboardView: View {
             return "\(cmsAverage)"
         }
         
-        // Final fallback - generate reasonable defaults based on facility type and time (only if open)
-        let hour = Calendar.current.component(.hour, from: Date())
-        let baseWaitTime: Int
-        
-        switch facility.facilityType {
-        case .emergencyDepartment:
-            // Emergency departments are always open, so generate appropriate wait times
-            switch hour {
-            case 15...20: baseWaitTime = 55 // Busy evening hours
-            case 8...14: baseWaitTime = 35  // Moderate daytime
-            default: baseWaitTime = 25      // Quieter hours
-            }
-        case .urgentCare:
-            // For urgent care, if we get here and facility is open, generate appropriate wait times
-            switch hour {
-            case 16...19: baseWaitTime = 20 // After work rush
-            case 10...15: baseWaitTime = 15 // Moderate day
-            default: baseWaitTime = 10      // Quieter hours
-            }
+        // No real data available - return N/A
+        return "N/A"
+    }
+    
+    /// Get the appropriate wait details label for the facility
+    private func getWaitDetails(for facility: Facility) -> String {
+        // For TAUC facilities, show "PATIENTS" instead of "MINUTES"
+        if facility.id.hasPrefix("total-access") {
+            return "PATIENTS"
+        } else {
+            return "MINUTES"
         }
-        
-        // Add small random variation (±3 minutes)
-        let variation = Int.random(in: -3...3)
-        return "\(max(0, baseWaitTime + variation))"
+    }
+    
+    /// Get display name for TAUC facilities (extract location) or use full name for others
+    private func getTAUCDisplayName(for facility: Facility) -> String {
+        if facility.id.hasPrefix("total-access") {
+            // Extract location from "Total Access Urgent Care - Location" format
+            let fullName = facility.name
+            if let dashIndex = fullName.range(of: " - ") {
+                let locationName = String(fullName[dashIndex.upperBound...])
+                return locationName
+            }
+            // Fallback to full name if format doesn't match
+            return facility.name
+        } else {
+            // For non-TAUC facilities, use the full name
+            return facility.name
+        }
     }
     
     /// Calculate distance to facility
@@ -747,83 +771,228 @@ struct FacilityCard: View {
     let isFirstCard: Bool
     let sheetState: BottomSheetState
     
+    // Add navigation-related properties
+    @StateObject private var simpleNavigationManager = SimpleNavigationManager.shared
+    @State private var isNavigating = false
+    @State private var showingNavigationAlert = false
+    @State private var navigationError: NavigationError?
+    
+    // Track navigation state per facility
+    @State private var navigationFacilityId: String? = nil
+    
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            // Left: Wait time with centered alignment
-            VStack(alignment: .center, spacing: 4) {
-                Text(facility.waitTime)
-                    .font(.system(size: 36, weight: .bold, design: .default))
-                    .foregroundColor(waitTimeColor)
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 16) {
+                // Left: Wait time with centered alignment
+                VStack(alignment: .center, spacing: 4) {
+                    Text(facility.waitTime)
+                        .font(.system(size: 36, weight: .bold, design: .default))
+                        .foregroundColor(waitTimeColor)
+                    
+                    Text(facility.waitDetails)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .textCase(.uppercase)
+                        .kerning(0.4)
+                }
+                .frame(width: 80, alignment: .center)
                 
-                Text(facility.waitDetails)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
-                    .kerning(0.4)
-            }
-            .frame(width: 80, alignment: .center)
-            
-            // Center: Facility info
-            VStack(alignment: .leading, spacing: 6) {
-                Text(facility.type)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
-                    .kerning(0.4)
-                
-                Text(facility.name)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-                
-                // Facility details (show in all states)
-                HStack(spacing: 18) {
-                    // Distance
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(DashboardConstants.primaryBlue)
-                            .frame(width: 8, height: 8)
+                // Center: Facility info
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(facility.type)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .textCase(.uppercase)
+                        .kerning(0.4)
+                    
+                    Text(facility.name)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                    
+                    // Facility details (show in all states)
+                    HStack(spacing: 18) {
+                        // Distance
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(DashboardConstants.primaryBlue)
+                                .frame(width: 8, height: 8)
+                            
+                            Text(facility.distance)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(DashboardConstants.primaryBlue)
+                        }
                         
-                        Text(facility.distance)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(DashboardConstants.primaryBlue)
+                        // Wait change
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(waitChangeColor)
+                                .frame(width: 8, height: 8)
+                            
+                            Text(facility.waitChange)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(waitChangeColor)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+                
+                Spacer()
+                
+                // Right: Status and Navigation
+                VStack(alignment: .trailing, spacing: 8) {
+                    // Status
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("Status")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .textCase(.uppercase)
+                            .kerning(0.2)
+                        
+                        Text(facility.status)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(facility.isOpen ? .green : .red)
                     }
                     
-                    // Wait change
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(waitChangeColor)
-                            .frame(width: 8, height: 8)
-                        
-                        Text(facility.waitChange)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(waitChangeColor)
+                    // Navigate Button
+                    Button(action: handleNavigationTap) {
+                        HStack(spacing: 6) {
+                            Image(systemName: navigationButtonIcon)
+                                .font(.system(size: 12, weight: .medium))
+                            Text("Navigate")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(navigationButtonColor)
+                        .cornerRadius(8)
                     }
+                    .disabled(!canNavigate)
+                    .opacity(canNavigate ? 1.0 : 0.6)
+                    .accessibilityLabel("Navigate to \(facility.name)")
+                    .accessibilityHint(canNavigate ? "Starts turn-by-turn navigation to this medical facility" : "Navigation not available. Check location permissions.")
                 }
-                .padding(.top, 4)
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, cardPadding)
             
-            Spacer()
-            
-            // Right: Status
-            VStack(alignment: .trailing, spacing: 4) {
-                Text("Status")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .textCase(.uppercase)
-                    .kerning(0.2)
-                
-                Text(facility.status)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(facility.isOpen ? .green : .red)
+            // Navigation progress indicator (shown when navigating this specific facility)
+            if isNavigating && navigationFacilityId == facility.id {
+                HStack {
+                    Image(systemName: "location.fill")
+                        .foregroundColor(.blue)
+                    Text("Opening in Maps...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 8)
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, cardPadding)
         .opacity(cardOpacity)
         .frame(height: cardHeight)
         .clipped()
         .animation(.easeInOut(duration: 0.25), value: sheetState)
+        .alert("Navigation Error", isPresented: $showingNavigationAlert) {
+            Button("OK") { }
+        } message: {
+            Text(navigationError?.localizedDescription ?? "Unknown error occurred")
+        }
+        .onReceive(simpleNavigationManager.$isNavigating) { navigating in
+            isNavigating = navigating
+            
+            // Clear navigation state when navigation stops
+            if !navigating {
+                navigationFacilityId = nil
+            }
+        }
+    }
+    
+    // MARK: - Navigation Logic
+    
+    /// Handle navigation button tap
+    private func handleNavigationTap() {
+        guard canNavigate else { return }
+        
+        // Set the facility ID for this navigation
+        navigationFacilityId = facility.id
+        
+        // Convert MedicalFacility to Facility model
+        let facilityModel = convertToFacilityModel()
+        
+        // Start navigation using SimpleNavigationManager
+        simpleNavigationManager.startNavigation(to: facilityModel) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success():
+                    // Navigation started successfully - isNavigating will be set by the receiver
+                    print("✅ Navigation started for facility: \(self.facility.name)")
+                    
+                    // Clear navigation state after a short delay since Maps opened
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        self.navigationFacilityId = nil
+                    }
+                    
+                case .failure(let error):
+                    // Handle navigation error
+                    self.navigationError = error
+                    self.showingNavigationAlert = true
+                    self.navigationFacilityId = nil
+                }
+            }
+        }
+    }
+    
+    /// Convert MedicalFacility to Facility model for navigation
+    private func convertToFacilityModel() -> Facility {
+        // For now, we'll use the existing facility data structure
+        // In a real implementation, you'd retrieve the full facility data
+        let coordinate = CLLocationCoordinate2D(
+            latitude: 38.6270 + Double.random(in: -0.02...0.02), // Spread facilities around St. Louis
+            longitude: -90.1994 + Double.random(in: -0.03...0.03)
+        )
+        
+        return Facility(
+            id: facility.id,
+            name: facility.name,
+            address: "Address", // TODO: Add actual address data
+            city: "St. Louis",
+            state: "MO",
+            zipCode: "63110",
+            phone: "555-0123",
+            facilityType: facility.type == "ER" ? .emergencyDepartment : .urgentCare,
+            coordinate: coordinate,
+            operatingHours: facility.type == "ER" ? OperatingHours.emergency24x7 : OperatingHours.standardUrgentCare
+        )
+    }
+    
+    
+    /// Check if navigation is possible
+    private var canNavigate: Bool {
+        let facilityModel = convertToFacilityModel()
+        return simpleNavigationManager.canNavigate(to: facilityModel)
+    }
+    
+    /// Navigation button icon based on state
+    private var navigationButtonIcon: String {
+        if isNavigating && navigationFacilityId == facility.id {
+            return "location.fill"
+        } else {
+            return "location"
+        }
+    }
+    
+    /// Navigation button color based on state
+    private var navigationButtonColor: Color {
+        if isNavigating && navigationFacilityId == facility.id {
+            return .green
+        } else if !canNavigate {
+            return .gray
+        } else {
+            return .blue
+        }
     }
     
     // MARK: - Color Logic

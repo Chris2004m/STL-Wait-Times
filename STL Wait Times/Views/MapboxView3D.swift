@@ -104,10 +104,10 @@ struct MapboxView3D: View {
         .onAppear {
             setupMapView()
         }
-        .onChange(of: mapMode) { newMode in
+        .onChange(of: mapMode) { _, newMode in
             handleMapModeChange(newMode)
         }
-        .onChange(of: reducedMotion) { isReduced in
+        .onChange(of: reducedMotion) { _, isReduced in
             adaptToAccessibilityPreferences()
         }
     }

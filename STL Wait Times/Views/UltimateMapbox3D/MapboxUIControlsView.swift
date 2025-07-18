@@ -240,7 +240,7 @@ struct MapboxUIControlsView: View {
                     Circle()
                         .fill(cameraController.cameraState.is3D ? .blue : Color(.systemGray4))
                 )
-                .scaleEffect(interactionState == .toggle3D ? 0.95 : 1.0)
+                .scaleEffect(interactionState == .toggle3D ? 0.95 as CGFloat : 1.0 as CGFloat)
         }
         .accessibility(label: Text("Toggle 3D View"))
         .accessibility(hint: Text("Currently \(cameraController.cameraMode.displayName)"))
@@ -264,7 +264,7 @@ struct MapboxUIControlsView: View {
                     .shadow(radius: 2)
             }
             .frame(width: buttonSize, height: buttonSize)
-            .scaleEffect(interactionState == .stylePicker ? 0.95 : 1.0)
+            .scaleEffect(interactionState == .stylePicker ? 0.95 as CGFloat : 1.0 as CGFloat)
         }
         .accessibility(label: Text("Change Map Style"))
         .accessibility(hint: Text("Currently \(styleManager.currentStyle.displayName)"))
@@ -819,7 +819,7 @@ struct StylePickerCard: View {
                             .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
                     )
             )
-            .scaleEffect(isSelected ? 1.05 : 1.0)
+            .scaleEffect(isSelected ? 1.05 as CGFloat : 1.0 as CGFloat)
         }
         .accessibility(label: Text(style.displayName))
         .accessibility(hint: Text(isSelected ? "Currently selected" : "Tap to select"))
@@ -862,7 +862,7 @@ struct ControlToggle: View {
             
             Toggle("", isOn: $isOn)
                 .labelsHidden()
-                .scaleEffect(0.8)
+                .scaleEffect(0.8 as CGFloat)
         }
         .accessibility(label: Text("\(label) toggle"))
         .accessibility(value: Text(isOn ? "On" : "Off"))

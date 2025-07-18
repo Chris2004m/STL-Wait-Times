@@ -149,7 +149,7 @@ struct UltimateBottomSheetView<Content: View>: View {
                 width: configuration.handleWidth,
                 height: configuration.handleHeight
             )
-            .scaleEffect(isDragging ? 1.1 : 1.0)
+            .scaleEffect(isDragging ? 1.1 as CGFloat : 1.0 as CGFloat)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isDragging)
     }
     

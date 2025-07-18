@@ -90,13 +90,16 @@ struct FacilityDetailView: View {
     // MARK: - Current Wait Time Section
     private var currentWaitTimeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Current Wait Time")
+            // Dynamic title based on facility type
+            let isTotalAccess = facility.name.contains("Total Access") || facility.id.hasPrefix("total-access")
+            Text(isTotalAccess ? "Patients in Line" : "Current Wait Time")
                 .font(.headline)
             
             if let waitTime = viewModel.currentWaitTime {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(waitTime.displayText)
+                        // Show appropriate display text based on facility type
+                        Text(isTotalAccess ? waitTime.patientDisplayText : waitTime.displayText)
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundColor(waitTime.isStale ? .orange : .primary)

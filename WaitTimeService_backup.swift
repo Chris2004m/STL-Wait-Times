@@ -3,8 +3,8 @@ import Combine
 import CoreLocation
 
 /// Service for fetching and managing wait time data from multiple Total Access APIs
-public class WaitTimeService: ObservableObject {
-    public static let shared = WaitTimeService()
+class WaitTimeService: ObservableObject {
+    static let shared = WaitTimeService()
     
     private let session: URLSession
     private var cancellables = Set<AnyCancellable>()
@@ -206,13 +206,6 @@ public class WaitTimeService: ObservableObject {
         for (index, facility) in facilities.enumerated() {
             print("   \(index + 1). \(facility.name) (\(facility.id))")
             print("      API: \(facility.apiEndpoint ?? "NONE")")
-            
-            // KIRKWOOD DEBUGGING: Check if Kirkwood is in the list
-            if facility.id == "total-access-12624" {
-                print("🟡 KIRKWOOD FOUND in facility list!")
-                print("🟡 KIRKWOOD: Name = \(facility.name)")
-                print("🟡 KIRKWOOD: API = \(facility.apiEndpoint ?? "NONE")")
-            }
         }
         
         // Include ALL Total Access facilities (both API and web-scraping only)
@@ -360,33 +353,33 @@ public class WaitTimeService: ObservableObject {
             .eraseToAnyPublisher()
     }
     
-    /// Fetches wait time for a single facility - API FIRST for reliable data
+    /// Fetches wait time for a single facility - WEB SCRAPING FIRST for all facilities
     private func fetchWaitTime(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
         
-        // PRIORITY 1: API FIRST for reliable, structured data
-        if let apiEndpoint = facility.apiEndpoint {
-            print("🎯 \(facility.name): Using API as PRIMARY method for reliable data")
-            print("   🔗 API Endpoint: \(apiEndpoint)")
-            print("   📊 API provides structured, reliable patient count data")
+        // PRIORITY 1: WEB SCRAPING for ALL facilities (most accurate real-time data)
+        if let websiteURL = facility.websiteURL {
+            print("🕷️ \(facility.name): Using WEB SCRAPING as PRIMARY method for all facilities")
+            print("   🌐 Website URL: \(websiteURL)")
+            print("   🔄 Web scraping provides most accurate real-time data")
             
-            return fetchAPIFallback(for: facility)
+            return fetchWebScrapingWaitTime(for: facility)
                 .catch { error -> AnyPublisher<WaitTime?, WaitTimeError> in
-                    print("⚠️ \(facility.name): API failed, falling back to web scraping...")
-                    print("   ❌ API error: \(error.localizedDescription)")
-                    return self.fetchWebScrapingWaitTime(for: facility)
+                    print("⚠️ \(facility.name): Web scraping failed, falling back to API...")
+                    print("   ❌ Web scraping error: \(error.localizedDescription)")
+                    return self.fetchAPIFallback(for: facility)
                 }
                 .eraseToAnyPublisher()
         } else {
-            print("🕷️ \(facility.name): No API endpoint - using web scraping only")
-            return fetchWebScrapingWaitTime(for: facility)
+            print("🔗 \(facility.name): No website URL - using API only")
+            return fetchAPIFallback(for: facility)
         }
     }
     
-    /// API method - primary data source for reliable patient counts
+    /// API fallback when web scraping fails or no website URL available
     private func fetchAPIFallback(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
         let provider = determineAPIProvider(for: facility)
         
-        print("🏥 \(facility.name): Using \(provider.displayName) API as primary data source")
+        print("🏥 \(facility.name): Using \(provider.displayName) API as fallback")
         
         switch provider {
         case .clockwiseMD:
@@ -479,7 +472,7 @@ public class WaitTimeService: ObservableObject {
                 
                 return String(data: data, encoding: .utf8) ?? ""
             }
-            .tryMap { htmlContent -> WaitTime in
+            .map { htmlContent -> WaitTime? in
                 let endTime = Date()
                 let duration = endTime.timeIntervalSince(startTime)
                 print("⏱️ \(facility.name): Web scraping completed in \(String(format: "%.2f", duration))s")
@@ -487,13 +480,13 @@ public class WaitTimeService: ObservableObject {
                 
                 let waitTime = self.parseWebScrapingWaitTime(htmlContent, for: facility)
                 
-                if let waitTime = waitTime {
+                if waitTime != nil {
                     print("✅ \(facility.name): Successfully parsed wait time from web scraping")
-                    return waitTime
                 } else {
-                    print("❌ \(facility.name): Failed to parse wait time from web scraping - triggering API fallback")
-                    throw WaitTimeError.noData
+                    print("❌ \(facility.name): Failed to parse wait time from web scraping - will trigger API fallback")
                 }
+                
+                return waitTime
             }
             .catch { error -> AnyPublisher<WaitTime?, WaitTimeError> in
                 let endTime = Date()
@@ -662,10 +655,6 @@ public class WaitTimeService: ObservableObject {
         // PRIORITY 3: Standard patterns for other urgent care websites
         // Patterns ordered by specificity (most specific first)
         let patientsPatterns = [
-            // Most specific ClockwiseMD patterns (PRIORITY)
-            #"Currently\s+(\d+)\s+in\s+line"#,
-            #"currently\s+(\d+)\s+in\s+line"#,
-            
             // Exact Total Access patterns (most specific)
             #"(?:patients?\s+in\s+line|in\s+line)\s*:?\s*(\d+)"#,
             #"(\d+)\s+patients?\s+(?:currently\s+)?in\s+line"#,
@@ -880,7 +869,7 @@ public class WaitTimeService: ObservableObject {
         // Extract numeric ID from facility.id (e.g., "total-access-12604" -> "12604")
         // Use apiEndpoint directly from facility data (contains correct ClockwiseMD API URL)
         guard let apiEndpoint = facility.apiEndpoint else {
-            print("❌ \(facility.name): Missing ClockwiseMD API endpoint")
+            print("❌ \\(facility.name): Missing ClockwiseMD API endpoint")
             return Fail(error: WaitTimeError.invalidURL)
                 .eraseToAnyPublisher()
         }
@@ -918,25 +907,11 @@ public class WaitTimeService: ObservableObject {
                 let duration = endTime.timeIntervalSince(startTime)
                 print("⏱️ \(facility.name): Request completed in \(String(format: "%.2f", duration))s")
                 
-                let isKirkwood = facility.id == "total-access-12624"
-                if isKirkwood {
-                    print("🟡 KIRKWOOD SUCCESS: API request completed successfully!")
-                    print("🟡 KIRKWOOD: About to parse response...")
-                }
-                
                 let waitTime = self.parseClockwiseMDWaitTime(from: response, for: facility)
-                
                 if let waitTime = waitTime {
                     print("✅ \(facility.name): Success - \(waitTime.waitMinutes) min")
-                    if isKirkwood {
-                        print("🟡 KIRKWOOD: Parsing completed successfully!")
-                        print("🟡 KIRKWOOD: WaitTime object created")
-                    }
                 } else {
                     print("⚠️ \(facility.name): No wait time data in response")
-                    if isKirkwood {
-                        print("🟡 KIRKWOOD: Parsing returned nil - this means parsing failed!")
-                    }
                 }
                 return waitTime
             }
@@ -945,42 +920,22 @@ public class WaitTimeService: ObservableObject {
                 let duration = endTime.timeIntervalSince(startTime)
                 print("⏱️ \(facility.name): Request completed in \(String(format: "%.2f", duration))s")
                 
-                // KIRKWOOD DEBUGGING: Special error tracking
-                let isKirkwood = facility.id == "total-access-12624"
-                if isKirkwood {
-                    print("🟡 KIRKWOOD ERROR: API request failed!")
-                    print("🟡 KIRKWOOD: Duration: \(String(format: "%.2f", duration))s")
-                    print("🟡 KIRKWOOD: Error type: \(type(of: error))")
-                }
-                
                 if let urlError = error as? URLError {
                     print("❌ \(facility.name): Network error: \(urlError.localizedDescription)")
                     print("❌ Error domain: \(urlError.errorCode), code: \(urlError.code.rawValue)")
                     
-                    if isKirkwood {
-                        print("🟡 KIRKWOOD: URLError code: \(urlError.code.rawValue)")
-                        print("🟡 KIRKWOOD: URLError description: \(urlError.localizedDescription)")
-                    }
-                    
                     switch urlError.code {
                     case .timedOut:
                         print("❌ TIMEOUT - Request timed out")
-                        if isKirkwood { print("🟡 KIRKWOOD: Request timed out after 30s") }
                     case .notConnectedToInternet:
                         print("❌ NO INTERNET - Device not connected")
-                        if isKirkwood { print("🟡 KIRKWOOD: No internet connection") }
                     case .cannotConnectToHost:
                         print("❌ CONNECTION FAILED - Cannot reach server")
-                        if isKirkwood { print("🟡 KIRKWOOD: Cannot connect to ClockwiseMD server") }
                     default:
                         print("❌ OTHER ERROR - \(urlError.localizedDescription)")
-                        if isKirkwood { print("🟡 KIRKWOOD: Other URL error: \(urlError.localizedDescription)") }
                     }
                 } else {
                     print("❌ \(facility.name): Other error: \(error.localizedDescription)")
-                    if isKirkwood {
-                        print("🟡 KIRKWOOD: Non-URL error: \(error.localizedDescription)")
-                    }
                 }
                 
                 return Just(nil)
@@ -1331,22 +1286,12 @@ public class WaitTimeService: ObservableObject {
         let hospitalWaits = response.hospitalWaits
         let currentTime = Date()
         
-        // KIRKWOOD DEBUGGING: Special debugging for facility 12624
-        let isKirkwood = facility.id == "total-access-12624"
-        let debugPrefix = isKirkwood ? "🟡 KIRKWOOD DEBUG" : "🏥"
-        
-        print("\(debugPrefix) \(facility.name): Processing ClockwiseMD response at \(currentTime)")
+        print("🏥 \(facility.name): Processing ClockwiseMD response at \(currentTime)")
         print("   📊 Raw API Data:")
-        print("      - Facility ID: \(facility.id)")
-        print("      - Hospital ID from API: \(response.hospitalId)")
         print("      - currentWait: \(hospitalWaits.currentWait ?? "nil")")
         print("      - queueLength: \(hospitalWaits.queueLength ?? 0)")
         print("      - queueTotal: \(hospitalWaits.queueTotal ?? 0) (CAPACITY - NOT CURRENT PATIENTS)")
         print("      - nextAvailableVisit: \(hospitalWaits.nextAvailableVisit ?? 0)")
-        
-        if isKirkwood {
-            print("🟡 KIRKWOOD: This is the facility showing N/A - tracking every step...")
-        }
         
         // COMPREHENSIVE DEBUGGING: Check if appointment queues exist
         print("   🔭 DEBUGGING: Checking appointment queues...")
@@ -1426,31 +1371,13 @@ public class WaitTimeService: ObservableObject {
             } else if currentWaitLowercased.contains("n/a") || currentWaitLowercased == "n/a" || 
                       currentWaitLowercased.contains("unavailable") || currentWaitLowercased == "unavailable" {
                 print("⚠️ \(facility.name): currentWait shows N/A, but checking if we have queue data...")
-                
-                if isKirkwood {
-                    print("🟡 KIRKWOOD DEBUG: N/A condition triggered!")
-                    print("🟡 KIRKWOOD: currentWait = '\(currentWait)'")
-                    print("🟡 KIRKWOOD: currentWaitLowercased = '\(currentWaitLowercased)'")
-                    print("🟡 KIRKWOOD: patientsInLine = \(patientsInLine)")
-                    print("🟡 KIRKWOOD: queueTotal = \(queueTotal)")
-                    print("🟡 KIRKWOOD: Condition (patientsInLine >= 0): \(patientsInLine >= 0)")
-                    print("🟡 KIRKWOOD: Condition (queueTotal > 0): \(queueTotal > 0)")
-                    print("🟡 KIRKWOOD: Combined condition: \(patientsInLine >= 0 || queueTotal > 0)")
-                }
-                
                 // SPECIAL HANDLING: If currentWait is N/A but we have queue data, prioritize queue data
                 if patientsInLine >= 0 || queueTotal > 0 {
                     print("✅ \(facility.name): Queue data available despite N/A currentWait - treating as OPEN")
-                    if isKirkwood {
-                        print("🟡 KIRKWOOD: Setting status to .open - should display 'No patients'")
-                    }
                     status = .open
                     waitMinutes = 0
                 } else {
                     print("❌ \(facility.name): Service UNAVAILABLE - currentWait: '\(currentWait)' and no queue data")
-                    if isKirkwood {
-                        print("🟡 KIRKWOOD: Setting status to .unavailable - would display 'N/A'")
-                    }
                     status = .unavailable
                     waitMinutes = 0
                 }
@@ -1493,23 +1420,17 @@ public class WaitTimeService: ObservableObject {
         print("   ⏱️ Wait time (backup): \(waitMinutes) min")
         print("   🏥 Status: \(status)")
         
-        // KIRKWOOD FIX: Don't use web scraping fallback when API provides valid data
-        // Only use web scraping if API truly has no queue data (no appointment_queues)
-        if status == .open && patientsInLine == 0 && queueTotal == 0 && response.appointmentQueues == nil {
+        // If API doesn't provide queue data and facility is open, try web scraping as fallback
+        if status == .open && patientsInLine == 0 && queueTotal == 0 {
             print("🔍 \(facility.name): No queue data from API, attempting web scraping fallback...")
             // Web scraping will be handled asynchronously - return current data for now
             // The web scraping will update the waitTimes dictionary when it completes
             DispatchQueue.global(qos: .background).async {
                 self.scrapeWebsitePatientsInLine(for: facility)
             }
-        } else if patientsInLine == 0 && response.appointmentQueues != nil {
-            if isKirkwood {
-                print("🟡 KIRKWOOD: API provided valid appointment queues with 0 patients - NOT using web scraping")
-                print("🟡 KIRKWOOD: This should prevent the incorrect '3 patients' override")
-            }
         }
         
-        let waitTime = WaitTime(
+        return WaitTime(
             facilityId: facility.id,
             waitMinutes: waitMinutes, // Backup data
             patientsInLine: patientsInLine, // Primary data we want to display
@@ -1517,19 +1438,6 @@ public class WaitTimeService: ObservableObject {
             nextAvailableSlot: nextAvailableSlot,
             status: status
         )
-        
-        if isKirkwood {
-            print("🟡 KIRKWOOD FINAL: Created WaitTime object:")
-            print("🟡 KIRKWOOD: - facilityId: \(waitTime.facilityId)")
-            print("🟡 KIRKWOOD: - status: \(waitTime.status)")
-            print("🟡 KIRKWOOD: - patientsInLine: \(waitTime.patientsInLine)")
-            print("🟡 KIRKWOOD: - waitMinutes: \(waitTime.waitMinutes)")
-            print("🟡 KIRKWOOD: - patientDisplayText: '\(waitTime.patientDisplayText)'")
-            print("🟡 KIRKWOOD: - displayText: '\(waitTime.displayText)'")
-            print("🟡 KIRKWOOD: If this shows 'N/A', the issue is in the UI layer, not parsing!")
-        }
-        
-        return waitTime
     }
     
     /// Validates patient count against expected values and logs discrepancies
@@ -1893,13 +1801,12 @@ public class WaitTimeService: ObservableObject {
         print("   Range: \(minWait)-\(maxWait) min | Avg: \(avgWait) min")
         print("   No wait: \(noWaitCount) | Long wait (>30min): \(longWaitCount)")
     }
-}
 
 // MARK: - Helper Extensions
 
 extension Date {
     /// Returns ISO8601 formatted string for consistent timestamps
-    internal var iso8601String: String {
+    var iso8601String: String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.string(from: self)
@@ -1907,7 +1814,7 @@ extension Date {
 }
 
 extension Array {
-    internal func chunked(into size: Int) -> [[Element]] {
+    func chunked(into size: Int) -> [[Element]] {
         return stride(from: 0, to: count, by: size).map {
             Array(self[$0..<Swift.min($0 + size, count)])
         }

@@ -7,15 +7,21 @@ class BackgroundTaskService: ObservableObject {
     static let shared = BackgroundTaskService()
     
     private let backgroundTaskIdentifier = "com.stlwaitline.refresh"
-    private let refreshInterval: TimeInterval = 120.0 // 2 minutes as specified in PRD
+    private let refreshInterval: TimeInterval = 90.0 // 1.5 minutes for more frequent updates
+    private let activeRefreshInterval: TimeInterval = 60.0 // 1 minute when app is active
+    
+    // Active refresh timer for frequent updates when app is active
+    private var activeRefreshTimer: Timer?
     
     private init() {}
     
     /// Registers background task types
     func registerBackgroundTasks() {
+        print("🔄 BackgroundTaskService: Registering background tasks")
         BGTaskScheduler.shared.register(forTaskWithIdentifier: backgroundTaskIdentifier, using: nil) { task in
             self.handleBackgroundRefresh(task: task as! BGAppRefreshTask)
         }
+        print("✅ BackgroundTaskService: Background tasks registered")
     }
     
     /// Schedules a background app refresh task
@@ -86,14 +92,45 @@ extension BackgroundTaskService {
     /// Call this when the app enters the background
     func appDidEnterBackground() {
         scheduleBackgroundRefresh()
+        stopActiveRefreshTimer()
     }
     
     /// Call this when the app becomes active
     func appDidBecomeActive() {
+        print("🔄 App became active - starting immediate refresh and active timer")
+        
         // Refresh immediately if needed (stale data is handled automatically in getBestWaitTime)
         let facilitiesWithAPIs = FacilityData.facilitiesWithAPIs
         if !facilitiesWithAPIs.isEmpty {
             WaitTimeService.shared.fetchAllWaitTimes(facilities: facilitiesWithAPIs)
+        }
+        
+        // Start active refresh timer for frequent updates while app is in use
+        startActiveRefreshTimer()
+    }
+    
+    // MARK: - Active Refresh Timer Methods
+    
+    /// Starts a timer for frequent refreshes while app is active
+    private func startActiveRefreshTimer() {
+        stopActiveRefreshTimer() // Stop any existing timer first
+        
+        print("⏰ Starting active refresh timer (every \(activeRefreshInterval) seconds)")
+        activeRefreshTimer = Timer.scheduledTimer(withTimeInterval: activeRefreshInterval, repeats: true) { _ in
+            print("⏰ Active refresh timer triggered")
+            let facilitiesWithAPIs = FacilityData.facilitiesWithAPIs
+            if !facilitiesWithAPIs.isEmpty {
+                WaitTimeService.shared.fetchAllWaitTimes(facilities: facilitiesWithAPIs)
+            }
+        }
+    }
+    
+    /// Stops the active refresh timer
+    private func stopActiveRefreshTimer() {
+        if activeRefreshTimer != nil {
+            print("⏰ Stopping active refresh timer")
+            activeRefreshTimer?.invalidate()
+            activeRefreshTimer = nil
         }
     }
 } 

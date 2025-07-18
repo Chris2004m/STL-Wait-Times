@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		83F8DD1A2E22CD5E000FF4A1 /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = 83F8DD192E22CD5E000FF4A1 /* SwiftSoup */; };
 		83F8DD1B2E22CD5E000FF4A1 /* MapboxMaps in Frameworks */ = {isa = PBXBuildFile; productRef = 83F8DD1C2E22CD5E000FF4A1 /* MapboxMaps */; };
+		83F8DD1E2E22CD5E000FF4A1 /* MapboxNavigationCore in Frameworks */ = {isa = PBXBuildFile; productRef = 83F8DD1F2E22CD5E000FF4A1 /* MapboxNavigationCore */; };
+		83F8DD202E22CD5E000FF4A1 /* MapboxNavigationUIKit in Frameworks */ = {isa = PBXBuildFile; productRef = 83F8DD212E22CD5E000FF4A1 /* MapboxNavigationUIKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -34,22 +36,9 @@
 		83F8DD042E22CBB1000FF4A1 /* STL Wait TimesUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "STL Wait TimesUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		83B62B102E29D92D00A151EE /* Exceptions for "STL Wait Times" folder in "STL Wait Times" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				"STL-Wait-Times-Info.plist",
-			);
-			target = 83F8DCEC2E22CBB0000FF4A1 /* STL Wait Times */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		83F8DCEF2E22CBB0000FF4A1 /* STL Wait Times */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				83B62B102E29D92D00A151EE /* Exceptions for "STL Wait Times" folder in "STL Wait Times" target */,
-			);
 			path = "STL Wait Times";
 			sourceTree = "<group>";
 		};
@@ -72,6 +61,8 @@
 			files = (
 				83F8DD1A2E22CD5E000FF4A1 /* SwiftSoup in Frameworks */,
 				83F8DD1B2E22CD5E000FF4A1 /* MapboxMaps in Frameworks */,
+				83F8DD1E2E22CD5E000FF4A1 /* MapboxNavigationCore in Frameworks */,
+				83F8DD202E22CD5E000FF4A1 /* MapboxNavigationUIKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -142,6 +133,8 @@
 			packageProductDependencies = (
 				83F8DD192E22CD5E000FF4A1 /* SwiftSoup */,
 				83F8DD1C2E22CD5E000FF4A1 /* MapboxMaps */,
+				83F8DD1F2E22CD5E000FF4A1 /* MapboxNavigationCore */,
+				83F8DD212E22CD5E000FF4A1 /* MapboxNavigationUIKit */,
 			);
 			productName = "STL Wait Times";
 			productReference = 83F8DCED2E22CBB0000FF4A1 /* STL Wait Times.app */;
@@ -228,6 +221,7 @@
 			packageReferences = (
 				83F8DD172E22CD55000FF4A1 /* XCRemoteSwiftPackageReference "SwiftSoup" */,
 				83F8DD1D2E22CD55000FF4A1 /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */,
+				83F8DD222E22CD55000FF4A1 /* XCRemoteSwiftPackageReference "mapbox-navigation-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 83F8DCEE2E22CBB0000FF4A1 /* Products */;
@@ -616,6 +610,14 @@
 				minimumVersion = 11.7.0;
 			};
 		};
+		83F8DD222E22CD55000FF4A1 /* XCRemoteSwiftPackageReference "mapbox-navigation-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mapbox/mapbox-navigation-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.10.2;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -628,6 +630,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 83F8DD1D2E22CD55000FF4A1 /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */;
 			productName = MapboxMaps;
+		};
+		83F8DD1F2E22CD5E000FF4A1 /* MapboxNavigationCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 83F8DD222E22CD55000FF4A1 /* XCRemoteSwiftPackageReference "mapbox-navigation-ios" */;
+			productName = MapboxNavigationCore;
+		};
+		83F8DD212E22CD5E000FF4A1 /* MapboxNavigationUIKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 83F8DD222E22CD55000FF4A1 /* XCRemoteSwiftPackageReference "mapbox-navigation-ios" */;
+			productName = MapboxNavigationUIKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

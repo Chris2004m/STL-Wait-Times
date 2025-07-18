@@ -103,9 +103,25 @@ class FacilityListViewModel: ObservableObject {
     }
     
     func refreshWaitTimes() {
-        let facilitiesWithAPIs = FacilityData.facilitiesWithAPIs
-        if !facilitiesWithAPIs.isEmpty {
-            waitTimeService.fetchAllWaitTimes(facilities: facilitiesWithAPIs)
+        print("🔄 DEBUG: refreshWaitTimes called")
+        print("🔄 DEBUG: FacilityData.allFacilities count: \(FacilityData.allFacilities.count)")
+        
+        // Include ALL Total Access facilities for refresh (both API and web scraping)
+        let totalAccessFacilities = FacilityData.allFacilities.filter { 
+            $0.id.hasPrefix("total-access") || $0.apiEndpoint != nil 
+        }
+        
+        print("🔄 Refreshing \(totalAccessFacilities.count) facilities (including web scraping)")
+        print("🔄 DEBUG: After filtering, facility IDs: \(totalAccessFacilities.map { $0.id })")
+        
+        for facility in totalAccessFacilities {
+            print("   - \(facility.name): \(facility.apiEndpoint != nil ? "API+Web" : "Web Only")")
+        }
+        
+        if !totalAccessFacilities.isEmpty {
+            waitTimeService.fetchAllWaitTimes(facilities: totalAccessFacilities)
+        } else {
+            print("❌ No Total Access facilities found for refresh!")
         }
     }
     
@@ -145,14 +161,29 @@ class FacilityListViewModel: ObservableObject {
     
     func waitTimeDisplayString(for facility: Facility) -> String {
         guard let waitTime = waitTime(for: facility) else {
+            print("🔍 DEBUG: \(facility.name) has no wait time data available")
             return "No data"
         }
         
+        // For Total Access urgent care facilities, show patients in line instead of wait time
+        let isTotalAccess = facility.name.contains("Total Access") || facility.id.hasPrefix("total-access")
+        
+        print("🔍 DEBUG: \(facility.name)")
+        print("   - isTotalAccess: \(isTotalAccess)")
+        print("   - waitTime.status: \(waitTime.status)")
+        print("   - waitTime.patientsInLine: \(waitTime.patientsInLine)")
+        print("   - waitTime.displayText: \(waitTime.displayText)")
+        print("   - waitTime.patientDisplayText: \(waitTime.patientDisplayText)")
+        
         if waitTime.isStale {
-            return "\(waitTime.displayText) (stale)"
+            let displayText = isTotalAccess ? waitTime.patientDisplayText : waitTime.displayText
+            print("   - FINAL (stale): \(displayText) (stale)")
+            return "\(displayText) (stale)"
         }
         
-        return waitTime.displayText
+        let finalText = isTotalAccess ? waitTime.patientDisplayText : waitTime.displayText
+        print("   - FINAL: \(finalText)")
+        return finalText
     }
     
     func waitTimeSourceString(for facility: Facility) -> String {

@@ -10,6 +10,8 @@ import SwiftUI
 import MapboxMaps
 import MapKit
 import CoreLocation
+import MapboxNavigationCore
+import MapboxDirections
 
 /// **FlyToTrigger**: Trigger structure for fly-to animations
 struct FlyToTrigger: Equatable {
@@ -180,6 +182,15 @@ struct MapboxView: UIViewRepresentable, Equatable {
     /// Trigger for forcing recenter even when coordinates haven't changed
     var recenterTrigger: UUID?
     
+    /// Current navigation route to display
+    var navigationRoute: Route?
+    
+    /// Navigation route line color
+    var routeLineColor: UIColor = .systemBlue
+    
+    /// Navigation route line width
+    var routeLineWidth: Double = 6.0
+    
     /// Mapbox access token
     private let accessToken = "pk.eyJ1IjoiY21pbHRvbjQiLCJhIjoiY21kNTVkcjh1MG05eTJrb21qeHB0aXo4bCJ9.5vv9akWMhonZ_J3ftkUKRg"
     
@@ -200,18 +211,25 @@ struct MapboxView: UIViewRepresentable, Equatable {
         // Check if lights setting changed
         let lightsChanged = lhs.lightsEnabled != rhs.lightsEnabled
         
+        // Check if navigation route changed
+        let routeChanged = (lhs.navigationRoute?.description != rhs.navigationRoute?.description)
+        
         // Return false if anything changed (this will trigger updateUIView)
-        return !centerChanged && !spanChanged && lhs.annotations.count == rhs.annotations.count && !triggerChanged && !lightsChanged
+        return !centerChanged && !spanChanged && lhs.annotations.count == rhs.annotations.count && !triggerChanged && !lightsChanged && !routeChanged
     }
     
     // MARK: - UIViewRepresentable Implementation
     
     func makeUIView(context: Context) -> MapView {
+        print("🗺️ MapboxView: Creating MapView")
+        
         // Configure Mapbox with access token
         MapboxOptions.accessToken = accessToken
+        print("🗺️ MapboxView: Access token configured")
         
         // Create map view with initial camera
         let mapView = MapView(frame: .zero)
+        print("🗺️ MapboxView: MapView created")
         
         // Set up Standard Core style with 3D features
         configureMapStyle(mapView: mapView, coordinator: context.coordinator)
@@ -228,6 +246,7 @@ struct MapboxView: UIViewRepresentable, Equatable {
         // Store map view in coordinator for fly-to functionality
         context.coordinator.setMapView(mapView)
         
+        print("✅ MapboxView: MapView setup complete")
         return mapView
     }
     
@@ -268,6 +287,9 @@ struct MapboxView: UIViewRepresentable, Equatable {
         
         // Always update 3D lights (was missing from original - this fixes lights toggle!)
         configure3DLights(for: mapView)
+        
+        // Update navigation route line
+        updateNavigationRoute(mapView: mapView)
         
         // Handle fly-to trigger
         if let trigger = flyToTrigger {
@@ -465,6 +487,55 @@ struct MapboxView: UIViewRepresentable, Equatable {
         }
     }
     
+    /// Update navigation route line on the map
+    private func updateNavigationRoute(mapView: MapView) {
+        // Remove existing route line
+        try? mapView.mapboxMap.removeLayer(withId: "navigation-route-line")
+        try? mapView.mapboxMap.removeSource(withId: "navigation-route")
+        
+        // Add new route line if available
+        if let route = navigationRoute {
+            addNavigationRouteToMap(mapView: mapView, route: route)
+        }
+    }
+    
+    /// Add navigation route line to the map
+    private func addNavigationRouteToMap(mapView: MapView, route: Route) {
+        guard let routeCoordinates = route.shape?.coordinates else {
+            print("❌ No route coordinates available")
+            return
+        }
+        
+        do {
+            // Create LineString from route coordinates
+            let routeLineString = LineString(routeCoordinates)
+            let routeFeature = Feature(geometry: routeLineString)
+            
+            // Create GeoJSON source for route
+            var routeSource = GeoJSONSource(id: "navigation-route")
+            routeSource.data = .feature(routeFeature)
+            
+            try mapView.mapboxMap.addSource(routeSource)
+            
+            // Create line layer for route
+            var routeLineLayer = LineLayer(id: "navigation-route-line", source: "navigation-route")
+            routeLineLayer.lineColor = .constant(StyleColor(routeLineColor))
+            routeLineLayer.lineWidth = .constant(routeLineWidth)
+            routeLineLayer.lineOpacity = .constant(0.8)
+            routeLineLayer.lineCap = .constant(.round)
+            routeLineLayer.lineJoin = .constant(.round)
+            routeLineLayer.slot = .middle
+            
+            // Add route line below facility annotations
+            try mapView.mapboxMap.addLayer(routeLineLayer, layerPosition: .below("medical-facilities-layer"))
+            
+            print("✅ Navigation route added to map")
+            
+        } catch {
+            print("❌ Error adding navigation route to map: \(error)")
+        }
+    }
+    
     // MARK: - Lighting Helpers
     
     /// Update 3D lights for mapView
@@ -486,29 +557,13 @@ struct MapboxView: UIViewRepresentable, Equatable {
         print("💡 Light params - azimuth: \(azimuth), polar: \(polarAngle), intensity: \(intensity)")
         
         do {
-            // Try multiple possible import names for Mapbox Standard style
-            let possibleImports = ["standard", "basemap", "mapbox"]
-            var lightPresetSet = false
+            // For Mapbox Standard style, try to set light preset directly on the style
+            // Note: Standard style imports may not be available immediately
+            print("🔆 Configuring lights for Standard style")
             
-            for importName in possibleImports {
-                do {
-                    let preset = lightsEnabled ? "day" : getCurrentLightPreset()
-                    try mapView.mapboxMap.setStyleImportConfigProperty(
-                        for: importName,
-                        config: "lightPreset",
-                        value: preset
-                    )
-                    print("✅ Successfully set lightPreset to: \(preset) using import: \(importName)")
-                    lightPresetSet = true
-                    break
-                } catch {
-                    print("⚠️ Failed to set lightPreset with import '\(importName)': \(error)")
-                }
-            }
-            
-            if !lightPresetSet {
-                print("❌ Could not set lightPreset with any known import name")
-            }
+            // Skip the import-based light preset configuration for now
+            // The experimental style content API below should handle lighting
+            print("ℹ️ Skipping import-based light preset configuration - using experimental API instead")
             
             // Also try the experimental style content API
             mapView.mapboxMap.setMapStyleContent {

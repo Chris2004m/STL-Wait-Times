@@ -39,6 +39,26 @@ struct WaitTime: Identifiable {
         }
     }
     
+    /// Display text for patient count (used for TAUC facilities)
+    var patientDisplayText: String {
+        switch status {
+        case .closed:
+            return "N/A"
+        case .unavailable:
+            return "N/A"
+        case .unknown:
+            return "N/A"
+        case .open:
+            if patientsInLine == 0 {
+                return "No patients"
+            } else if patientsInLine == 1 {
+                return "1 patient"
+            } else {
+                return "\(patientsInLine) patients"
+            }
+        }
+    }
+    
     /// Whether this facility is currently available for new patients
     var isAvailable: Bool {
         return status == .open
@@ -72,10 +92,12 @@ struct WaitTimeDataPoint: Identifiable {
 struct ClockwiseMDResponse: Codable {
     let hospitalId: Int
     let hospitalWaits: HospitalWaits
+    let appointmentQueues: [AppointmentQueue]?
     
     enum CodingKeys: String, CodingKey {
         case hospitalId = "hospital_id"
         case hospitalWaits = "hospital_waits"
+        case appointmentQueues = "appointment_queues"
     }
 }
 
@@ -91,6 +113,50 @@ struct HospitalWaits: Codable {
         case currentWait = "current_wait"
         case queueLength = "queue_length"
         case queueTotal = "queue_total"
+    }
+    
+    // Custom decoder to handle nextAvailableVisit as either Int or String
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Handle nextAvailableVisit which can be Int or String ("N/A")
+        if let intValue = try? container.decode(Int.self, forKey: .nextAvailableVisit) {
+            nextAvailableVisit = intValue
+        } else if let stringValue = try? container.decode(String.self, forKey: .nextAvailableVisit) {
+            // If it's a string like "N/A", treat as nil
+            nextAvailableVisit = Int(stringValue) // Will be nil for "N/A"
+        } else {
+            nextAvailableVisit = nil
+        }
+        
+        // Standard decoding for other fields
+        currentWait = try container.decodeIfPresent(String.self, forKey: .currentWait)
+        queueLength = try container.decodeIfPresent(Int.self, forKey: .queueLength)
+        queueTotal = try container.decodeIfPresent(Int.self, forKey: .queueTotal)
+    }
+}
+
+/// Individual appointment queue from ClockwiseMD API
+struct AppointmentQueue: Codable {
+    let queueId: Int?
+    let queueWaits: QueueWaits?
+    
+    enum CodingKeys: String, CodingKey {
+        case queueId = "queue_id"
+        case queueWaits = "queue_waits"
+    }
+}
+
+/// Wait information for a specific queue
+struct QueueWaits: Codable {
+    let currentWait: Int?
+    let currentPatientsInLine: Int?
+    let currentWaitRange: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case currentWait = "current_wait"
+        case currentPatientsInLine = "current_patients_in_line"
+        case currentWaitRange = "current_wait_range"
     }
 }
 

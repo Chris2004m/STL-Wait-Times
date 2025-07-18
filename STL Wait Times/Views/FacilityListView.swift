@@ -89,7 +89,7 @@ struct FacilityListView: View {
                 }
             }
             .pickerStyle(SegmentedPickerStyle())
-            .onChange(of: viewModel.selectedFacilityType) { _ in
+            .onChange(of: viewModel.selectedFacilityType) { _, _ in
                 viewModel.applyFilter()
             }
             
@@ -101,7 +101,7 @@ struct FacilityListView: View {
                 Spacer()
                 if viewModel.isLoading {
                     ProgressView()
-                        .scaleEffect(0.8)
+                        .scaleEffect(0.8 as CGFloat)
                 }
             }
         }
