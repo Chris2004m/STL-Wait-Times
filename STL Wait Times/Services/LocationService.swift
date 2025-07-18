@@ -1,5 +1,6 @@
 import Foundation
 import CoreLocation
+import MapKit
 import Combine
 
 /// Service for managing user location and geo-fencing
@@ -14,6 +15,8 @@ class LocationService: NSObject, ObservableObject {
     @Published var isLocationEnabled = false
     @Published var locationError: LocationError?
     @Published var isNearFacility: [String: Bool] = [:]
+    @Published var isLoadingLocation = false
+    @Published var hasInitialLocation = false
     
     private let geoFenceRadius: CLLocationDistance = 75.0 // 75 meters as specified in PRD
     private let geoFenceMinTime: TimeInterval = 5 * 60 // 5 minutes
@@ -22,6 +25,7 @@ class LocationService: NSObject, ObservableObject {
     override init() {
         super.init()
         setupLocationManager()
+        requestLocationPermissionIfNeeded()
     }
     
     private func setupLocationManager() {
@@ -37,25 +41,39 @@ class LocationService: NSObject, ObservableObject {
     func requestLocationPermission() {
         switch authorizationStatus {
         case .notDetermined:
+            isLoadingLocation = true
             locationManager.requestWhenInUseAuthorization()
         case .denied, .restricted:
             locationError = .permissionDenied
+            isLoadingLocation = false
         case .authorizedWhenInUse, .authorizedAlways:
             startLocationUpdates()
         @unknown default:
             locationError = .unknown
+            isLoadingLocation = false
+        }
+    }
+    
+    /// Automatically requests location permission if not yet determined
+    private func requestLocationPermissionIfNeeded() {
+        if authorizationStatus == .notDetermined {
+            requestLocationPermission()
+        } else if isLocationEnabled && currentLocation == nil {
+            startLocationUpdates()
         }
     }
     
     /// Starts location updates
     private func startLocationUpdates() {
         guard isLocationEnabled else { return }
+        isLoadingLocation = true
         locationManager.startUpdatingLocation()
     }
     
     /// Stops location updates
     func stopLocationUpdates() {
         locationManager.stopUpdatingLocation()
+        isLoadingLocation = false
     }
     
     /// Calculates distance between user and facility
@@ -151,6 +169,30 @@ class LocationService: NSObject, ObservableObject {
             return wait1 < wait2
         }
     }
+    
+    /// Gets the initial map region - user location if available, otherwise St. Louis
+    func getInitialMapRegion() -> MKCoordinateRegion {
+        if let userLocation = currentLocation {
+            return MKCoordinateRegion(
+                center: userLocation.coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+            )
+        } else {
+            // Fallback to St. Louis area
+            return MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: 38.6270, longitude: -90.1994),
+                span: MKCoordinateSpan(latitudeDelta: 2.0, longitudeDelta: 2.0)
+            )
+        }
+    }
+    
+    /// Centers map on user location with appropriate zoom level
+    func getUserLocationRegion(withZoom zoom: MKCoordinateSpan? = nil) -> MKCoordinateRegion? {
+        guard let userLocation = currentLocation else { return nil }
+        
+        let span = zoom ?? MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+        return MKCoordinateRegion(center: userLocation.coordinate, span: span)
+    }
 }
 
 // MARK: - CLLocationManagerDelegate
@@ -159,6 +201,12 @@ extension LocationService: CLLocationManagerDelegate {
         guard let location = locations.last else { return }
         currentLocation = location
         locationError = nil
+        isLoadingLocation = false
+        
+        // Mark that we have received the initial location
+        if !hasInitialLocation {
+            hasInitialLocation = true
+        }
         
         // Update geo-fencing status for all monitored facilities
         for _ in geoFenceTimers.keys {
@@ -168,6 +216,8 @@ extension LocationService: CLLocationManagerDelegate {
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        isLoadingLocation = false
+        
         if let clError = error as? CLError {
             switch clError.code {
             case .denied:
@@ -193,6 +243,12 @@ extension LocationService: CLLocationManagerDelegate {
         } else {
             stopLocationUpdates()
             currentLocation = nil
+            hasInitialLocation = false
+            
+            // Set appropriate error for denied states
+            if status == .denied || status == .restricted {
+                locationError = .permissionDenied
+            }
         }
     }
 }

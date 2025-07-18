@@ -49,11 +49,12 @@ struct DashboardView: View {
     
     // MARK: - State Properties
     @State private var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 38.6270, longitude: -90.1994), // St. Louis
+        center: CLLocationCoordinate2D(latitude: 38.6270, longitude: -90.1994), // St. Louis fallback
         span: MKCoordinateSpan(latitudeDelta: 2.0, longitudeDelta: 2.0) // Wide view like Flighty
     )
     
     @State private var sheetState: BottomSheetState = .peek
+    @State private var locationError: LocationError? = nil
     
     // MARK: - 3D Map Properties
     @State private var mapMode: MapDisplayMode = .hybrid2D
@@ -107,16 +108,24 @@ struct DashboardView: View {
                 Button(action: {
                     centerOnUserLocation()
                 }) {
-                    Image(systemName: "location.fill")
-                        .font(.system(size: iconSize, weight: .medium))
-                        .foregroundColor(iconColor)
-                        .frame(width: compassButtonSize, height: compassButtonSize)
-                        .background(compassButtonBackground)
-                        .clipShape(Circle())
-                        .shadow(color: compassShadowColor, radius: compassShadowRadius, x: compassShadowOffset.width, y: compassShadowOffset.height)
+                    Group {
+                        if locationService.isLoadingLocation {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                                .progressViewStyle(CircularProgressViewStyle(tint: iconColor))
+                        } else {
+                            Image(systemName: locationButtonIcon)
+                                .font(.system(size: iconSize, weight: .medium))
+                                .foregroundColor(iconColor)
+                        }
+                    }
+                    .frame(width: compassButtonSize, height: compassButtonSize)
+                    .background(compassButtonBackground)
+                    .clipShape(Circle())
+                    .shadow(color: compassShadowColor, radius: compassShadowRadius, x: compassShadowOffset.width, y: compassShadowOffset.height)
                 }
-                .disabled(!locationService.isLocationEnabled)
-                .opacity(locationService.isLocationEnabled ? 1.0 : 0.6)
+                .disabled(locationService.isLoadingLocation || (!locationService.isLocationEnabled && !locationService.isLoadingLocation))
+                .opacity(buttonOpacity)
                 .accessibility(label: Text("Center on my location"))
                 .accessibility(hint: Text("Centers the map on your current location"))
                 .padding(.trailing, 16) // Match compass button horizontal alignment
@@ -141,7 +150,7 @@ struct DashboardView: View {
     
     /// Background matching native Mapbox compass button
     private var compassButtonBackground: some View {
-        Color.white.opacity(0.9) // White background like native compass
+        Color.white.opacity(0.85) // Slightly translucent white background matching native compass
     }
     
     /// Icon color matching native compass button
@@ -172,6 +181,28 @@ struct DashboardView: View {
     /// Spacing between compass and location buttons
     private var buttonSpacing: CGFloat {
         8 // Consistent spacing between buttons
+    }
+    
+    /// Location button icon based on state
+    private var locationButtonIcon: String {
+        if locationService.hasInitialLocation {
+            return "location.fill"
+        } else if locationService.authorizationStatus == .denied || locationService.authorizationStatus == .restricted {
+            return "location.slash"
+        } else {
+            return "location"
+        }
+    }
+    
+    /// Button opacity based on location service state
+    private var buttonOpacity: Double {
+        if locationService.isLoadingLocation {
+            return 1.0 // Keep visible when loading
+        } else if locationService.isLocationEnabled {
+            return 1.0 // Fully visible when enabled
+        } else {
+            return 0.6 // Dimmed when disabled
+        }
     }
     
     // MARK: - Sheet Content
@@ -266,8 +297,12 @@ struct DashboardView: View {
             Spacer(minLength: 0)
         }
         .onAppear {
-            // Request location permission for better map experience
-            locationService.requestLocationPermission()
+            setupInitialMapRegion()
+        }
+        .onReceive(locationService.$hasInitialLocation) { hasLocation in
+            if hasLocation {
+                updateMapToUserLocation()
+            }
         }
     }
     
@@ -300,6 +335,27 @@ struct DashboardView: View {
         #endif
     }
     
+    // MARK: - Location Setup Methods
+    
+    /// Set up initial map region - use user location if available, otherwise fallback to St. Louis
+    private func setupInitialMapRegion() {
+        // Set the region based on current location availability
+        region = locationService.getInitialMapRegion()
+    }
+    
+    /// Update map to center on user location with smooth animation
+    private func updateMapToUserLocation() {
+        guard let userLocationRegion = locationService.getUserLocationRegion() else { return }
+        
+        withAnimation(.easeInOut(duration: 1.5)) {
+            region = userLocationRegion
+        }
+        
+        // Announce for accessibility
+        let announcement = "Map centered on your location"
+        UIAccessibility.post(notification: .announcement, argument: announcement)
+    }
+    
     // MARK: - 3D Map Interaction Handlers
     
     /// Handle map tap gestures for 3D map
@@ -324,20 +380,36 @@ struct DashboardView: View {
     
     /// Center the map on the user's current location
     private func centerOnUserLocation() {
-        guard let userLocation = locationService.currentLocation else {
-            // Handle case where location is not available
+        // Handle different location service states
+        switch locationService.authorizationStatus {
+        case .notDetermined:
+            // Request permission if not yet determined
+            locationService.requestLocationPermission()
+            return
+            
+        case .denied, .restricted:
+            // Show alert or handle denied permission
+            locationError = LocationError.permissionDenied
+            showLocationSettingsAlert()
+            return
+            
+        case .authorizedWhenInUse, .authorizedAlways:
+            // Permission granted, proceed with centering
+            break
+            
+        @unknown default:
             return
         }
         
-        // Create a new region centered on user's location
-        let newRegion = MKCoordinateRegion(
-            center: userLocation.coordinate,
-            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05) // Closer zoom than default
-        )
+        guard let userLocationRegion = locationService.getUserLocationRegion() else {
+            // No location available yet, but permission is granted
+            // The map will auto-center when location becomes available
+            return
+        }
         
         // Animate the region change
         withAnimation(.easeInOut(duration: 0.8)) {
-            region = newRegion
+            region = userLocationRegion
         }
         
         // Provide haptic feedback
@@ -346,6 +418,18 @@ struct DashboardView: View {
         
         // Announce for accessibility
         let announcement = "Map centered on your location"
+        UIAccessibility.post(notification: .announcement, argument: announcement)
+    }
+    
+    /// Show alert directing user to settings for location permission
+    private func showLocationSettingsAlert() {
+        // In a real app, you would present an alert here
+        // For now, we'll just provide haptic feedback to indicate the action failed
+        let impact = UINotificationFeedbackGenerator()
+        impact.notificationOccurred(.error)
+        
+        // Announce for accessibility
+        let announcement = "Location access denied. Please enable location access in Settings to use this feature."
         UIAccessibility.post(notification: .announcement, argument: announcement)
     }
     

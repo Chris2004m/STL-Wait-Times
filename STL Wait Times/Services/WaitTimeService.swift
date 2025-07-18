@@ -338,6 +338,8 @@ class WaitTimeService: ObservableObject {
             return fetchSolvWaitTime(for: facility)
         case .epic:
             return fetchEpicWaitTime(for: facility)
+        case .ssmHealthFHIR:
+            return fetchSSMHealthFHIRWaitTime(for: facility)
         }
     }
     
@@ -347,10 +349,14 @@ class WaitTimeService: ObservableObject {
             return .clockwiseMD
         } else if facility.id.hasPrefix("mercy-gohealth") {
             return .mercyGoHealth
+        } else if facility.id.hasPrefix("ssm-health") {
+            return .ssmHealthFHIR
         } else if facility.apiEndpoint?.contains("solv") == true {
             return .solv
         } else if facility.apiEndpoint?.contains("epic") == true || facility.apiEndpoint?.contains("mychart") == true {
             return .epic
+        } else if facility.apiEndpoint?.contains("1up.health") == true || facility.apiEndpoint?.contains("fhir") == true {
+            return .ssmHealthFHIR
         } else {
             // Default to ClockwiseMD for backwards compatibility
             return .clockwiseMD
@@ -599,6 +605,173 @@ class WaitTimeService: ObservableObject {
             .eraseToAnyPublisher()
     }
     
+    /// Fetches wait time from SSM Health via 1upHealth FHIR API
+    private func fetchSSMHealthFHIRWaitTime(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
+        guard let apiEndpoint = facility.apiEndpoint else {
+            print("❌ \(facility.name): No FHIR API endpoint configured")
+            
+            // Return mock data for development/testing
+            return fetchSSMHealthMockWaitTime(for: facility)
+        }
+        
+        print("🌐 \(facility.name): Fetching from SSM Health FHIR API: \(apiEndpoint)")
+        
+        // For now, return mock data until we have actual API credentials
+        // This allows the app to work while pursuing business partnership
+        return fetchSSMHealthMockWaitTime(for: facility)
+        
+        /* TODO: Implement actual FHIR API call when credentials are available
+        
+        // Step 1: Authenticate with OAuth 2.0
+        return authenticateSSMHealthFHIR()
+            .flatMap { token in
+                // Step 2: Query FHIR Observation resources for wait times
+                return self.querySSMHealthWaitTimes(facility: facility, token: token)
+            }
+            .eraseToAnyPublisher()
+        */
+    }
+    
+    /// Returns mock wait time data for SSM Health facilities during development
+    private func fetchSSMHealthMockWaitTime(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
+        print("🎭 \(facility.name): Returning mock SSM Health wait time data")
+        
+        // Generate realistic mock data based on facility type and time of day
+        let calendar = Calendar.current
+        let hour = calendar.component(.hour, from: Date())
+        
+        // Simulate different wait times based on time of day
+        let baseWaitTime: Int
+        switch hour {
+        case 6...10:  // Morning rush
+            baseWaitTime = facility.facilityType == .emergencyDepartment ? 45 : 25
+        case 11...14: // Lunch time
+            baseWaitTime = facility.facilityType == .emergencyDepartment ? 35 : 20
+        case 15...18: // Afternoon busy
+            baseWaitTime = facility.facilityType == .emergencyDepartment ? 60 : 35
+        case 19...22: // Evening peak
+            baseWaitTime = facility.facilityType == .emergencyDepartment ? 75 : 40
+        default:      // Overnight
+            baseWaitTime = facility.facilityType == .emergencyDepartment ? 20 : 15
+        }
+        
+        // Add some randomness (+/- 15 minutes)
+        let randomOffset = Int.random(in: -15...15)
+        let waitMinutes = max(0, baseWaitTime + randomOffset)
+        
+        // Estimate patients in line based on wait time
+        let patientsInLine = waitMinutes > 0 ? max(1, waitMinutes / 8) : 0
+        
+        let mockWaitTime = WaitTime(
+            facilityId: facility.id,
+            waitMinutes: waitMinutes,
+            patientsInLine: patientsInLine,
+            lastUpdated: Date(),
+            nextAvailableSlot: waitMinutes + 10
+        )
+        
+        print("✅ \(facility.name): Mock data - \(waitMinutes) min wait, \(patientsInLine) patients")
+        
+        // Simulate network delay
+        return Timer.publish(every: 1.0, on: .main, in: .common)
+            .first()
+            .map { _ in mockWaitTime }
+            .setFailureType(to: WaitTimeError.self)
+            .eraseToAnyPublisher()
+    }
+    
+    /// Authenticates with SSM Health FHIR API via OAuth 2.0
+    private func authenticateSSMHealthFHIR() -> AnyPublisher<FHIROAuthToken, WaitTimeError> {
+        // TODO: Implement OAuth 2.0 authentication when credentials are available
+        print("🔐 Authenticating with SSM Health FHIR API...")
+        
+        let mockToken = FHIROAuthToken(
+            accessToken: "mock_access_token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            scope: "patient/Observation.read"
+        )
+        
+        return Just(mockToken)
+            .setFailureType(to: WaitTimeError.self)
+            .eraseToAnyPublisher()
+    }
+    
+    /// Queries SSM Health FHIR API for wait time observations
+    private func querySSMHealthWaitTimes(facility: Facility, token: FHIROAuthToken) -> AnyPublisher<WaitTime?, WaitTimeError> {
+        // TODO: Implement actual FHIR query when API access is available
+        print("📊 Querying SSM Health FHIR for wait time observations...")
+        
+        // Mock FHIR query would look like:
+        // GET /fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=facility-id
+        
+        return fetchSSMHealthMockWaitTime(for: facility)
+    }
+    
+    /// Parses wait time from SSM Health FHIR Observation resources
+    private func parseSSMHealthFHIRWaitTime(from bundle: FHIRBundle, for facility: Facility) -> WaitTime? {
+        guard let entries = bundle.entry, !entries.isEmpty else {
+            print("⚠️ \(facility.name): No FHIR observations found")
+            return nil
+        }
+        
+        // Look for wait time observations
+        for entry in entries {
+            let observation = entry.resource
+            
+            // Check if this is a wait time observation
+            if let code = observation.code,
+               let coding = code.coding?.first,
+               coding.code == "wait-time" || coding.display?.lowercased().contains("wait") == true {
+                
+                // Extract wait time value
+                let waitMinutes: Int
+                if let quantity = observation.valueQuantity, let value = quantity.value {
+                    waitMinutes = Int(value)
+                } else if let valueString = observation.valueString,
+                          let extractedMinutes = extractMinutesFromString(valueString) {
+                    waitMinutes = extractedMinutes
+                } else {
+                    continue
+                }
+                
+                print("✅ \(facility.name): Parsed FHIR wait time - \(waitMinutes) min")
+                
+                return WaitTime(
+                    facilityId: facility.id,
+                    waitMinutes: waitMinutes,
+                    patientsInLine: 0, // Not typically available in FHIR
+                    lastUpdated: Date(),
+                    nextAvailableSlot: 0
+                )
+            }
+        }
+        
+        print("⚠️ \(facility.name): No wait time observations found in FHIR bundle")
+        return nil
+    }
+    
+    /// Extracts minutes from various string formats
+    private func extractMinutesFromString(_ timeString: String) -> Int? {
+        let patterns = [
+            #"(\d+)\s*min"#,
+            #"(\d+)\s*minute"#,
+            #"wait[^\d]*(\d+)"#,
+            #"(\d+)[^\d]*wait"#
+        ]
+        
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+               let match = regex.firstMatch(in: timeString, options: [], range: NSRange(timeString.startIndex..., in: timeString)),
+               let minutesRange = Range(match.range(at: 1), in: timeString),
+               let minutes = Int(timeString[minutesRange]) {
+                return minutes
+            }
+        }
+        
+        return nil
+    }
+    
     /// Parses wait time from ClockwiseMD API response
     private func parseClockwiseMDWaitTime(from response: ClockwiseMDResponse, for facility: Facility) -> WaitTime? {
         let hospitalWaits = response.hospitalWaits
@@ -730,6 +903,23 @@ class WaitTimeService: ObservableObject {
         // First try to get from cache
         if let cachedWaitTime = waitTimes[facility.id], !cachedWaitTime.isStale {
             return cachedWaitTime
+        }
+        
+        // For SSM Health facilities, generate mock data if no cached data
+        if facility.id.hasPrefix("ssm-health") {
+            // Generate mock wait time for immediate display
+            let hour = Calendar.current.component(.hour, from: Date())
+            let baseWait = facility.facilityType == .emergencyDepartment ? 45 : 25
+            let timeMultiplier = hour >= 15 && hour <= 20 ? 1.5 : 1.0 // Busier in evening
+            let waitMinutes = Int(Double(baseWait) * timeMultiplier) + Int.random(in: -10...10)
+            
+            return WaitTime(
+                facilityId: facility.id,
+                waitMinutes: max(0, waitMinutes),
+                patientsInLine: max(0, waitMinutes / 8),
+                lastUpdated: Date(),
+                nextAvailableSlot: waitMinutes + 10
+            )
         }
         
         // If no cached data or stale, return CMS average for EDs

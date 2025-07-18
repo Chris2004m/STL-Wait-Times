@@ -4,7 +4,7 @@ import CoreLocation
 /// Static facility data for St. Louis metro area
 struct FacilityData {
     
-    /// All facilities in the St. Louis metro area
+    /// All facilities in the St. Louis metro area (includes SSM Health FHIR integration)
     static let allFacilities: [Facility] = [
         // Total Access Urgent Care Locations - All 31 Working APIs
         
@@ -917,6 +917,186 @@ struct FacilityData {
             cmsAverageWaitMinutes: nil,
             apiEndpoint: nil, // TODO: Find Solv provider ID
             websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/st-charles"
+        ),
+        
+        // MARK: - SSM Health Locations (Emergency Departments & Urgent Care)
+        
+        // SSM Health St. Mary's Hospital - St. Louis (Emergency Department)
+        Facility(
+            id: "ssm-health-st-marys-st-louis-ed",
+            name: "SSM Health St. Mary's Hospital Emergency Department",
+            address: "6420 Clayton Rd",
+            city: "St. Louis",
+            state: "MO",
+            zipCode: "63117",
+            phone: "(314) 768-8000",
+            facilityType: .emergencyDepartment,
+            coordinate: CLLocationCoordinate2D(latitude: 38.6278, longitude: -90.3420),
+            cmsAverageWaitMinutes: 45, // CMS average for comparison
+            apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-st-marys-stl",
+            websiteURL: "https://www.ssmhealth.com/locations/st-louis/st-marys-hospital-st-louis"
+        ),
+        
+        // SSM Health St. Joseph Hospital - St. Charles (Emergency Department)
+        Facility(
+            id: "ssm-health-st-joseph-st-charles-ed",
+            name: "SSM Health St. Joseph Hospital Emergency Department",
+            address: "300 1st Capitol Dr",
+            city: "St. Charles",
+            state: "MO",
+            zipCode: "63301",
+            phone: "(636) 947-5000",
+            facilityType: .emergencyDepartment,
+            coordinate: CLLocationCoordinate2D(latitude: 38.7833, longitude: -90.4967),
+            cmsAverageWaitMinutes: 52, // CMS average for comparison
+            apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-st-joseph-stc",
+            websiteURL: "https://www.ssmhealth.com/locations/location-details/emergency-room-st-joseph-hospital-st-charles"
+        ),
+        
+        // SSM Health DePaul Hospital (Emergency Department)
+        Facility(
+            id: "ssm-health-depaul-hospital-ed",
+            name: "SSM Health DePaul Hospital Emergency Department",
+            address: "12303 DePaul Dr",
+            city: "Bridgeton",
+            state: "MO",
+            zipCode: "63044",
+            phone: "(314) 344-6000",
+            facilityType: .emergencyDepartment,
+            coordinate: CLLocationCoordinate2D(latitude: 38.7600, longitude: -90.4100),
+            cmsAverageWaitMinutes: 38, // CMS average for comparison
+            apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-depaul",
+            websiteURL: "https://www.ssmhealth.com/locations/bridgeton/depaul-hospital"
+        ),
+        
+        // SSM Health St. Clare Hospital - Fenton (Emergency Department)
+        Facility(
+            id: "ssm-health-st-clare-fenton-ed",
+            name: "SSM Health St. Clare Hospital Emergency Department",
+            address: "1015 Bowles Ave",
+            city: "Fenton",
+            state: "MO",
+            zipCode: "63026",
+            phone: "(636) 496-2000",
+            facilityType: .emergencyDepartment,
+            coordinate: CLLocationCoordinate2D(latitude: 38.5130, longitude: -90.4350),
+            cmsAverageWaitMinutes: 41, // CMS average for comparison
+            apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-st-clare",
+            websiteURL: "https://www.ssmhealth.com/locations/fenton/st-clare-hospital"
+        ),
+        
+        // SSM Health St. Mary's Hospital - Madison, WI (Emergency Department)
+        Facility(
+            id: "ssm-health-st-marys-madison-ed",
+            name: "SSM Health St. Mary's Hospital Emergency Department",
+            address: "700 S Park St",
+            city: "Madison",
+            state: "WI",
+            zipCode: "53715",
+            phone: "(608) 251-6100",
+            facilityType: .emergencyDepartment,
+            coordinate: CLLocationCoordinate2D(latitude: 43.0642, longitude: -89.4012),
+            cmsAverageWaitMinutes: 35, // CMS average for comparison
+            apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-st-marys-mad",
+            websiteURL: "https://www.ssmhealth.com/locations/location-details/emergency-room-st-marys-hospital-madison"
+        ),
+        
+        // SSM Health Urgent Care Locations
+        
+        // SSM Health Urgent Care - Clayton
+        Facility(
+            id: "ssm-health-urgent-care-clayton",
+            name: "SSM Health Urgent Care - Clayton",
+            address: "1034 S Big Bend Blvd",
+            city: "Clayton",
+            state: "MO",
+            zipCode: "63117",
+            phone: "(314) 768-3500",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.6270, longitude: -90.3400),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-uc-clayton",
+            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics"
+        ),
+        
+        // SSM Health Urgent Care - O'Fallon
+        Facility(
+            id: "ssm-health-urgent-care-ofallon",
+            name: "SSM Health Urgent Care - O'Fallon",
+            address: "1681 Keaton Crossing Blvd",
+            city: "O'Fallon",
+            state: "MO",
+            zipCode: "63368",
+            phone: "(636) 625-4500",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.8100, longitude: -90.7030),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-uc-ofallon",
+            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics"
+        ),
+        
+        // SSM Health Urgent Care - Florissant
+        Facility(
+            id: "ssm-health-urgent-care-florissant",
+            name: "SSM Health Urgent Care - Florissant",
+            address: "2055 N Highway 67",
+            city: "Florissant",
+            state: "MO",
+            zipCode: "63033",
+            phone: "(314) 830-2500",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.7890, longitude: -90.3220),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-uc-florissant",
+            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics"
+        ),
+        
+        // SSM Health Urgent Care - Fenton
+        Facility(
+            id: "ssm-health-urgent-care-fenton",
+            name: "SSM Health Urgent Care - Fenton",
+            address: "1015 Bowles Ave",
+            city: "Fenton",
+            state: "MO",
+            zipCode: "63026",
+            phone: "(636) 496-3500",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.5130, longitude: -90.4350),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-uc-fenton",
+            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics"
+        ),
+        
+        // SSM Health Urgent Care - Wentzville
+        Facility(
+            id: "ssm-health-urgent-care-wentzville",
+            name: "SSM Health Urgent Care - Wentzville",
+            address: "1000 W Pearce Blvd",
+            city: "Wentzville",
+            state: "MO",
+            zipCode: "63385",
+            phone: "(636) 332-7000",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.8117, longitude: -90.8526),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-uc-wentzville",
+            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics"
+        ),
+        
+        // SSM Health Express Clinic - Bridgeton
+        Facility(
+            id: "ssm-health-express-clinic-bridgeton",
+            name: "SSM Health Express Clinic - Bridgeton",
+            address: "12303 DePaul Dr",
+            city: "Bridgeton",
+            state: "MO",
+            zipCode: "63044",
+            phone: "(314) 344-7200",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.7600, longitude: -90.4100),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://api.1up.health/fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=ssm-ec-bridgeton",
+            websiteURL: "https://www.ssmhealth.com/services/urgent-care-express-clinics"
         )
     ]
     

@@ -34,9 +34,22 @@
 		83F8DD042E22CBB1000FF4A1 /* STL Wait TimesUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "STL Wait TimesUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		83B62B102E29D92D00A151EE /* Exceptions for "STL Wait Times" folder in "STL Wait Times" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"STL-Wait-Times-Info.plist",
+			);
+			target = 83F8DCEC2E22CBB0000FF4A1 /* STL Wait Times */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		83F8DCEF2E22CBB0000FF4A1 /* STL Wait Times */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				83B62B102E29D92D00A151EE /* Exceptions for "STL Wait Times" folder in "STL Wait Times" target */,
+			);
 			path = "STL Wait Times";
 			sourceTree = "<group>";
 		};
@@ -421,6 +434,9 @@
 				DEVELOPMENT_TEAM = TP6ND464BJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "STL-Wait-Times-Info.plist";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to show nearby medical facilities";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location access to show nearby medical facilities and center the map on your location";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -449,6 +465,9 @@
 				DEVELOPMENT_TEAM = TP6ND464BJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "STL-Wait-Times-Info.plist";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "This app needs location access to show nearby medical facilities";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "This app needs location access to show nearby medical facilities and center the map on your location";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

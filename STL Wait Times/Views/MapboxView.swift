@@ -57,6 +57,7 @@ struct FlyToTrigger: Equatable {
 /// - ⚡ Optimized performance with native SDK
 /// - ♿ Full accessibility support
 /// - 📍 Custom annotation system for medical facilities
+/// - 📱 Automatic user location centering with smooth animations
 ///
 /// **Usage:**
 /// ```swift
@@ -307,7 +308,12 @@ struct MapboxView: UIViewRepresentable {
                 pitch: mapView.mapboxMap.cameraState.pitch
             )
             
-            mapView.mapboxMap.setCamera(to: camera)
+            // Use smooth animation for location updates
+            if centerDistance > 500 { // Larger distance changes get animated
+                mapView.camera.ease(to: camera, duration: 1.2)
+            } else {
+                mapView.mapboxMap.setCamera(to: camera)
+            }
         }
     }
     

@@ -77,6 +77,7 @@ enum APIProvider {
     case mercyGoHealth  // Mercy-GoHealth Urgent Care
     case solv  // Solv platform integration
     case epic  // Epic MyChart "On My Way"
+    case ssmHealthFHIR  // SSM Health via 1upHealth FHIR API
     
     var displayName: String {
         switch self {
@@ -84,6 +85,7 @@ enum APIProvider {
         case .mercyGoHealth: return "Mercy-GoHealth"
         case .solv: return "Solv"
         case .epic: return "Epic MyChart"
+        case .ssmHealthFHIR: return "SSM Health FHIR"
         }
     }
 }
@@ -146,6 +148,110 @@ struct SolvWaitTime: Codable {
     }
 }
 
+/// FHIR Response models for SSM Health via 1upHealth
+struct FHIRBundle: Codable {
+    let resourceType: String
+    let id: String?
+    let type: String
+    let total: Int?
+    let entry: [FHIRBundleEntry]?
+}
+
+struct FHIRBundleEntry: Codable {
+    let resource: FHIRObservation
+}
+
+struct FHIRObservation: Codable {
+    let resourceType: String
+    let id: String?
+    let status: String?
+    let category: [FHIRCodeableConcept]?
+    let code: FHIRCodeableConcept?
+    let subject: FHIRReference?
+    let valueQuantity: FHIRQuantity?
+    let valueString: String?
+    let effectiveDateTime: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case resourceType, id, status, category, code, subject
+        case valueQuantity, valueString
+        case effectiveDateTime = "effectiveDateTime"
+    }
+}
+
+struct FHIRCodeableConcept: Codable {
+    let coding: [FHIRCoding]?
+    let text: String?
+}
+
+struct FHIRCoding: Codable {
+    let system: String?
+    let code: String?
+    let display: String?
+}
+
+struct FHIRReference: Codable {
+    let reference: String?
+    let display: String?
+}
+
+struct FHIRQuantity: Codable {
+    let value: Double?
+    let unit: String?
+    let system: String?
+    let code: String?
+}
+
+/// SSM Health specific response model
+struct SSMHealthResponse: Codable {
+    let facilityId: String
+    let waitTime: SSMWaitTimeInfo
+    let status: String
+    let lastUpdated: String
+    let dataSource: String
+    
+    enum CodingKeys: String, CodingKey {
+        case facilityId = "facility_id"
+        case waitTime = "wait_time"
+        case status
+        case lastUpdated = "last_updated"
+        case dataSource = "data_source"
+    }
+}
+
+struct SSMWaitTimeInfo: Codable {
+    let currentWaitMinutes: Int?
+    let estimatedWaitMinutes: Int?
+    let patientsInQueue: Int?
+    let nextAvailableSlot: String?
+    let urgentCareStatus: String?
+    let emergencyDeptStatus: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case currentWaitMinutes = "current_wait_minutes"
+        case estimatedWaitMinutes = "estimated_wait_minutes"
+        case patientsInQueue = "patients_in_queue"
+        case nextAvailableSlot = "next_available_slot"
+        case urgentCareStatus = "urgent_care_status"
+        case emergencyDeptStatus = "emergency_dept_status"
+    }
+}
+
+/// Authentication model for FHIR APIs
+struct FHIROAuthToken: Codable {
+    let accessToken: String
+    let tokenType: String
+    let expiresIn: Int
+    let scope: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case tokenType = "token_type"
+        case expiresIn = "expires_in"
+        case scope
+    }
+}
+
 /// Errors that can occur when fetching wait time data
 enum WaitTimeError: Error, LocalizedError {
     case invalidURL
@@ -154,6 +260,8 @@ enum WaitTimeError: Error, LocalizedError {
     case noData
     case apiError(String)
     case rateLimited
+    case authenticationFailed
+    case fhirError(String)
     
     var errorDescription: String? {
         switch self {
@@ -169,6 +277,10 @@ enum WaitTimeError: Error, LocalizedError {
             return "API Error: \(message)"
         case .rateLimited:
             return "Too many requests - please try again later"
+        case .authenticationFailed:
+            return "Authentication failed - API credentials required"
+        case .fhirError(let message):
+            return "FHIR API Error: \(message)"
         }
     }
 } 
