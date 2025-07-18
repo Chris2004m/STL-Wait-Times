@@ -59,7 +59,7 @@ struct DashboardView: View {
     // Pending flag to auto-center once first location fix arrives after user taps button
     @State private var pendingCenterOnLocation: Bool = false
     // Trigger ID to force map recenter even when coordinates haven't changed
-    @State private var recenterTrigger: UUID = UUID()
+    @State private var recenterTrigger: UUID? = nil
     
     // MARK: - 3D Map Properties
     @State private var mapMode: MapDisplayMode = .hybrid2D
@@ -487,6 +487,11 @@ struct DashboardView: View {
             region = userLocationRegion
             // Generate new trigger ID to force MapboxView update
             recenterTrigger = UUID()
+        }
+        
+        // Reset the recenter trigger after animation completes to prevent unwanted recentering
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { // 1.5s animation + 0.5s buffer
+            recenterTrigger = nil
         }
         
         // Provide haptic feedback

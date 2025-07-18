@@ -234,22 +234,33 @@ struct MapboxView: UIViewRepresentable, Equatable {
     func updateUIView(_ mapView: MapView, context: Context) {
         print("🔄 MapboxView updateUIView called")
         
-        // Store current state to determine what changed (use same logic as Equatable)
+        // Get detailed state information for debugging
         let currentCenter = mapView.mapboxMap.cameraState.center
-        let centerChanged = abs(coordinateRegion.center.latitude - currentCenter.latitude) > 0.0001 ||
-                           abs(coordinateRegion.center.longitude - currentCenter.longitude) > 0.0001
+        let targetCenter = coordinateRegion.center
         
-        let spanChanged = abs(coordinateRegion.span.latitudeDelta - 2.0) > 0.0001 ||
-                         abs(coordinateRegion.span.longitudeDelta - 2.0) > 0.0001 // Check against some baseline
+        print("🔍 Current map center: \(currentCenter.latitude), \(currentCenter.longitude)")
+        print("🔍 Target region center: \(targetCenter.latitude), \(targetCenter.longitude)")
+        print("🔍 Current lights: \(lightsEnabled)")
+        print("🔍 Recenter trigger: \(recenterTrigger?.uuidString ?? "nil")")
         
-        print("🔍 Update triggers - Center: \(centerChanged), Span: \(spanChanged), Recenter: \(recenterTrigger != nil)")
+        let centerLatDiff = abs(targetCenter.latitude - currentCenter.latitude)
+        let centerLonDiff = abs(targetCenter.longitude - currentCenter.longitude)
+        let centerChanged = centerLatDiff > 0.0001 || centerLonDiff > 0.0001
         
-        // Update camera region only if position actually changed OR if explicitly triggered
-        if centerChanged || spanChanged || recenterTrigger != nil {
-            print("📍 Updating camera region")
+        print("🔍 Center differences - Lat: \(centerLatDiff), Lon: \(centerLonDiff)")
+        print("🔍 Center changed: \(centerChanged)")
+        
+        // COMPLETELY SKIP camera updates for ANY lights-only changes
+        // Only update camera for explicit recenter triggers or if this is NOT a lights-only change
+        if recenterTrigger != nil {
+            print("🎯 Explicit recenter trigger - updating camera")
             updateCameraRegion(mapView: mapView)
+        } else if centerChanged {
+            print("❓ Center changed but no recenter trigger - might be unintended")
+            print("❓ Skipping camera update to prevent unwanted recentering")
+            // updateCameraRegion(mapView: mapView) // COMMENTED OUT for now
         } else {
-            print("⏭️ Skipping camera update - likely lights-only change")
+            print("✅ No camera changes needed")
         }
         
         // Update annotations
@@ -481,7 +492,7 @@ struct MapboxView: UIViewRepresentable, Equatable {
             
             for importName in possibleImports {
                 do {
-                    let preset = lightsEnabled ? getCurrentLightPreset() : "night"
+                    let preset = lightsEnabled ? "day" : getCurrentLightPreset()
                     try mapView.mapboxMap.setStyleImportConfigProperty(
                         for: importName,
                         config: "lightPreset",
@@ -505,14 +516,14 @@ struct MapboxView: UIViewRepresentable, Equatable {
                 Atmosphere()
                     .range(start: 0, end: 12)
                     .horizonBlend(0.1)
-                    .starIntensity(lightsEnabled ? 0.2 : 0.0)
+                    .starIntensity(lightsEnabled ? 0.0 : 0.2)
                     .color(StyleColor(red: 240, green: 196, blue: 152, alpha: 1)!)
                     .highColor(StyleColor(red: 221, green: 209, blue: 197, alpha: 1)!)
                     .spaceColor(StyleColor(red: 153, green: 180, blue: 197, alpha: 1)!)
                 
                 // Configure directional light (sun)
                 DirectionalLight(id: "directional-light")
-                    .intensity(lightsEnabled ? intensity : 0.1)
+                    .intensity(lightsEnabled ? 0.8 : intensity)
                     .direction(azimuthal: azimuth, polar: polarAngle)
                     .directionTransition(.zero)
                     .castShadows(lightsEnabled)
@@ -521,7 +532,7 @@ struct MapboxView: UIViewRepresentable, Equatable {
                 // Configure ambient light
                 AmbientLight(id: "ambient-light")
                     .color(ambientColor)
-                    .intensity(lightsEnabled ? 0.5 : 0.2)
+                    .intensity(lightsEnabled ? 0.6 : 0.2)
             }
             print("✅ Successfully configured experimental 3D lights")
             
