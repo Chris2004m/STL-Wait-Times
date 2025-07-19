@@ -655,7 +655,7 @@ struct DashboardView: View {
             MedicalFacility(
                 id: facility.id,
                 name: getTAUCDisplayName(for: facility),
-                type: facility.facilityType == .emergencyDepartment ? "ER" : (facility.id.hasPrefix("total-access") ? "TAUC" : "UC"),
+                type: facility.facilityType == .emergencyDepartment ? "ER" : (facility.id.hasPrefix("total-access") ? "TAUC" : (facility.id.hasPrefix("mercy-gohealth") ? "Mercy" : "UC")),
                 waitTime: getRealWaitTime(for: facility),
                 waitDetails: getWaitDetails(for: facility),
                 distance: calculateDistance(to: facility),

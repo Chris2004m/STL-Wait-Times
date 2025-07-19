@@ -165,11 +165,12 @@ class NavigationManager: ObservableObject {
     private func configureVoiceInstructions(for navigationViewController: NavigationViewController) {
         
         // Configure voice controller settings
-        if let voiceController = navigationViewController.voiceController {
-            // Note: Voice controller API has changed in v3, these properties may not be available
-            // Basic voice instructions should work by default
-            // TODO: Update with proper v3 voice controller API when available
-        }
+        // Note: Voice controller API has changed in v3, these properties may not be available
+        // Basic voice instructions should work by default
+        // TODO: Update with proper v3 voice controller API when available
+        
+        // For now, we rely on the default voice instructions from Mapbox Navigation SDK
+        _ = navigationViewController.voiceController // Silence unused warning
     }
     
     /// Clean up navigation resources

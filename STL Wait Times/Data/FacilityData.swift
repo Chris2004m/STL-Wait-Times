@@ -531,8 +531,560 @@ struct FacilityData {
             apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/12609/waits",
             websiteURL: "https://www.clockwisemd.com/hospitals/12609/visits/new",
             operatingHours: .standardUrgentCare
+        ),
+        
+        // MERCY GO HEALTH URGENT CARE LOCATIONS
+        
+        // Hampton Village Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-hampton-village",
+            name: "Hampton Village",
+            address: "4260 Hampton Ave",
+            city: "St. Louis",
+            state: "MO",
+            zipCode: "63109",
+            phone: "(314) 282-6323",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.5917, longitude: -90.2826),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271772110&latitude=38.591569&longitude=-90.293861&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/hampton-village",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Maplewood Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-maplewood",
+            name: "Maplewood",
+            address: "2015 Maplewood Commons Dr",
+            city: "St. Louis",
+            state: "MO",
+            zipCode: "63143",
+            phone: "(314) 293-4023",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.620837, longitude: -90.333624),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271102110&latitude=38.620837&longitude=-90.333624&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/maplewood",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Clayton Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-clayton",
+            name: "Clayton",
+            address: "8321 Maryland Ave",
+            city: "Clayton",
+            state: "MO",
+            zipCode: "63105",
+            phone: "(314) 626-8010",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.653369, longitude: -90.347072),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271142110&latitude=38.653369&longitude=-90.347072&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/clayton",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Kirkwood Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-kirkwood",
+            name: "Kirkwood",
+            address: "10700 Manchester Road, Suite E",
+            city: "Kirkwood",
+            state: "MO",
+            zipCode: "63122",
+            phone: "(314) 455-7088",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.600092, longitude: -90.404309),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271012110&latitude=38.600092&longitude=-90.404309&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/kirkwood",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Crestwood Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-crestwood",
+            name: "Crestwood",
+            address: "9551 Watson Rd",
+            city: "Crestwood",
+            state: "MO",
+            zipCode: "63126",
+            phone: "(314) 501-1826",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.557861, longitude: -90.379417),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271762110&latitude=38.557861&longitude=-90.379417&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/crestwood",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Creve Coeur Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-creve-coeur",
+            name: "Creve Coeur",
+            address: "11445 Olive Boulevard",
+            city: "Creve Coeur",
+            state: "MO",
+            zipCode: "63141",
+            phone: "(314) 428-9543",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.672871, longitude: -90.433949),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271022111&latitude=38.672871&longitude=-90.433949&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/creve-coeur",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Florissant Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-florissant",
+            name: "Florissant",
+            address: "3433 N Highway 67",
+            city: "Florissant",
+            state: "MO",
+            zipCode: "63033",
+            phone: "(314) 720-4380",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.813866, longitude: -90.291763),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271722110&latitude=38.813866&longitude=-90.291763&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/florissant",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Des Peres Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-des-peres",
+            name: "Des Peres",
+            address: "13275 Manchester Road",
+            city: "Des Peres",
+            state: "MO",
+            zipCode: "63131",
+            phone: "(314) 396-8222",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.602091, longitude: -90.465555),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271092110&latitude=38.602091&longitude=-90.465555&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/des-peres",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Oakville Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-oakville",
+            name: "Oakville",
+            address: "5640C Telegraph Road",
+            city: "Oakville",
+            state: "MO",
+            zipCode: "63129",
+            phone: "(314) 293-4413",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.46732, longitude: -90.30299),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271162110&latitude=38.46732&longitude=-90.30299&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/oakville",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Fenton Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-fenton",
+            name: "Fenton",
+            address: "676 Gravois Bluffs Boulevard, Suite A1",
+            city: "Fenton",
+            state: "MO",
+            zipCode: "63026",
+            phone: "(636) 492-2245",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.507286, longitude: -90.441916),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271332110&latitude=38.507286&longitude=-90.441916&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/fenton",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Manchester Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-manchester",
+            name: "Manchester",
+            address: "409 Lafayette Center",
+            city: "Manchester",
+            state: "MO",
+            zipCode: "63011",
+            phone: "(636) 707-0764",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.595659, longitude: -90.521639),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271032111&latitude=38.595659&longitude=-90.521639&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/manchester",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Chesterfield Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-chesterfield",
+            name: "Chesterfield",
+            address: "1722 Clarkson Road",
+            city: "Chesterfield",
+            state: "MO",
+            zipCode: "63017",
+            phone: "(636) 206-2665",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.64223, longitude: -90.566168),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271072110&latitude=38.64223&longitude=-90.566168&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/chesterfield",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Saint Charles Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-saint-charles",
+            name: "Saint Charles",
+            address: "2031 Zumbehl Road",
+            city: "St. Charles",
+            state: "MO",
+            zipCode: "63303",
+            phone: "(636) 206-2690",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.78297, longitude: -90.534918),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271082110&latitude=38.78297&longitude=-90.534918&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/st-charles",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Imperial Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-imperial",
+            name: "Imperial",
+            address: "1125 Main Street",
+            city: "Imperial",
+            state: "MO",
+            zipCode: "63052",
+            phone: "(636) 206-8051",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.370092, longitude: -90.381148),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?latitude=38.370092&longitude=-90.381148&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/imperial",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Cottleville Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-cottleville",
+            name: "Cottleville",
+            address: "6167 Mid River Mall Drive",
+            city: "St. Peters",
+            state: "MO",
+            zipCode: "63304",
+            phone: "(636) 364-4990",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.741944, longitude: -90.636188),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271172110&latitude=38.741944&longitude=-90.636188&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/cottleville",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Eureka Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-eureka",
+            name: "Eureka",
+            address: "20 The Legends Parkway",
+            city: "Eureka",
+            state: "MO",
+            zipCode: "63025",
+            phone: "(636) 549-8509",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.495944, longitude: -90.62709),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?latitude=38.495944&longitude=-90.62709&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/eureka",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // O'Fallon Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-ofallon",
+            name: "O'Fallon",
+            address: "2991 Highway K",
+            city: "O'Fallon",
+            state: "MO",
+            zipCode: "63368",
+            phone: "(636) 435-2333",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.757368, longitude: -90.703829),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271122110&latitude=38.757368&longitude=-90.703829&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/ofallon",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Lake Saint Louis Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-lake-saint-louis",
+            name: "Lake Saint Louis",
+            address: "6460 Ronald Reagan Drive",
+            city: "Lake Saint Louis",
+            state: "MO",
+            zipCode: "63367",
+            phone: "(636) 205-9613",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.764834, longitude: -90.786693),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271322110&latitude=38.764834&longitude=-90.786693&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/lake-st-louis",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Festus Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-festus",
+            name: "Festus",
+            address: "660A Truman Boulevard",
+            city: "Festus",
+            state: "MO",
+            zipCode: "63028",
+            phone: "(636) 206-8049",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.21226, longitude: -90.390725),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?latitude=38.21226&longitude=-90.390725&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/festus",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Wentzville Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-wentzville",
+            name: "Wentzville",
+            address: "1111 W. Pearce Boulevard",
+            city: "Wentzville",
+            state: "MO",
+            zipCode: "63385",
+            phone: "(636) 856-5362",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.811278, longitude: -90.87051),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=271742110&latitude=38.811278&longitude=-90.87051&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/wentzville",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Washington Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-washington",
+            name: "Washington",
+            address: "555 Washington Square Shopping Court",
+            city: "Washington",
+            state: "MO",
+            zipCode: "63090",
+            phone: "(636) 392-2209",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.538205, longitude: -91.003986),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?latitude=38.538205&longitude=-91.003986&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/washington",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Union Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-union",
+            name: "Union",
+            address: "39 Silo Drive",
+            city: "Union",
+            state: "MO",
+            zipCode: "63084",
+            phone: "(636) 234-3022",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.433318, longitude: -90.975217),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?latitude=38.433318&longitude=-90.975217&isGoHealthLocation=true",
+            websiteURL: "https://www.gohealthuc.com/mercy-st-louis/locations/union",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
         )
-        // Testing all thirty-one Total Access facilities with improved batch processing
+        // Testing all fifty-three facilities (31 Total Access + 22 Mercy-GoHealth) with improved batch processing
     ]
     
     /// Emergency departments only

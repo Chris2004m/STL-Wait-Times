@@ -997,73 +997,61 @@ public class WaitTimeService: ObservableObject {
     private func fetchMercyGoHealthWaitTime(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
         guard let apiEndpoint = facility.apiEndpoint,
               let url = URL(string: apiEndpoint) else {
-            print("❌ \(facility.name): Invalid API endpoint - trying fallback approach")
-            
-            // If no API endpoint, try to get wait time from website scraping or alternative method
-            return fetchMercyGoHealthWebsiteWaitTime(for: facility)
+            print("❌ \(facility.name): No Mercy API endpoint configured")
+            return Just(nil)
+                .setFailureType(to: WaitTimeError.self)
+                .eraseToAnyPublisher()
         }
         
-        print("🌐 \(facility.name): Fetching from Solv API: \(apiEndpoint)")
+        print("🏥 \(facility.name): Fetching from Mercy API: \(apiEndpoint)")
         
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("STL-WaitLine/1.0 (iOS)", forHTTPHeaderField: "User-Agent")
-        request.setValue("https://www.solvhealth.com", forHTTPHeaderField: "Referer") // Add referer for Solv
+        request.setValue("STL-WaitLine/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("https://www.mercy.net", forHTTPHeaderField: "Referer")
         request.timeoutInterval = 30.0
         
         let startTime = Date()
         return session.dataTaskPublisher(for: request)
             .timeout(.seconds(30), scheduler: DispatchQueue.global(qos: .userInitiated))
-            .retry(1) // Reduce retries for external APIs
+            .retry(1)
             .tryMap { data, response -> Data in
                 if let httpResponse = response as? HTTPURLResponse {
-                    print("📊 \(facility.name): Solv API response status: \(httpResponse.statusCode)")
+                    print("📊 \(facility.name): Mercy API response status: \(httpResponse.statusCode)")
                     
-                    // Handle different status codes from Solv
-                    switch httpResponse.statusCode {
-                    case 200...299:
-                        break
-                    case 401:
-                        throw WaitTimeError.apiError("Unauthorized - API key required")
-                    case 403:
-                        throw WaitTimeError.apiError("Forbidden - Access denied")
-                    case 404:
-                        throw WaitTimeError.apiError("Provider not found")
-                    case 429:
-                        throw WaitTimeError.rateLimited
-                    case 500...599:
-                        throw WaitTimeError.apiError("Solv server error")
-                    default:
+                    guard httpResponse.statusCode == 200 else {
                         throw WaitTimeError.apiError("HTTP \(httpResponse.statusCode)")
                     }
                 }
-                
                 return data
             }
-            .decode(type: SolvResponse.self, decoder: JSONDecoder())
+            .decode(type: MercyResponse.self, decoder: JSONDecoder())
             .map { response -> WaitTime? in
                 let endTime = Date()
                 let duration = endTime.timeIntervalSince(startTime)
-                print("⏱️ \(facility.name): Solv request completed in \(String(format: "%.2f", duration))s")
+                print("⏱️ \(facility.name): Mercy request completed in \(String(format: "%.2f", duration))s")
                 
-                let waitTime = self.parseSolvWaitTime(from: response, for: facility)
-                if let waitTime = waitTime {
-                    print("✅ \(facility.name): Solv success - \(waitTime.waitMinutes) min")
-                } else {
-                    print("⚠️ \(facility.name): No wait time data from Solv")
-                }
+                let waitTime = WaitTime(
+                    facilityId: facility.id,
+                    waitMinutes: response.time,
+                    patientsInLine: 0, // Mercy API doesn't provide patient count
+                    lastUpdated: Date(),
+                    nextAvailableSlot: 0, // Not provided by Mercy API
+                    status: .open,
+                    waitTimeRange: nil
+                )
+                
+                print("✅ \(facility.name): Mercy success - \(response.time) min")
                 return waitTime
             }
             .catch { error -> AnyPublisher<WaitTime?, WaitTimeError> in
                 let endTime = Date()
                 let duration = endTime.timeIntervalSince(startTime)
-                print("⏱️ \(facility.name): Solv request completed in \(String(format: "%.2f", duration))s")
+                print("⏱️ \(facility.name): Mercy request completed in \(String(format: "%.2f", duration))s")
+                print("❌ \(facility.name): Mercy API error - \(error.localizedDescription)")
                 
-                print("❌ \(facility.name): Solv error - \(error.localizedDescription)")
-                
-                // Fallback to website scraping approach
-                return self.fetchMercyGoHealthWebsiteWaitTime(for: facility)
-                    .catch { _ in Just(nil).setFailureType(to: WaitTimeError.self) }
+                return Just(nil)
+                    .setFailureType(to: WaitTimeError.self)
                     .eraseToAnyPublisher()
             }
             .eraseToAnyPublisher()
@@ -1230,10 +1218,9 @@ public class WaitTimeService: ObservableObject {
         
         print("✅ \(facility.name): Mock data - \(waitMinutes) min wait, \(patientsInLine) patients")
         
-        // Simulate network delay
-        return Timer.publish(every: 1.0, on: .main, in: .common)
-            .first()
-            .map { _ in mockWaitTime }
+        // Simulate network delay without creating persistent timers
+        return Just(mockWaitTime)
+            .delay(for: .seconds(1), scheduler: DispatchQueue.main)
             .setFailureType(to: WaitTimeError.self)
             .eraseToAnyPublisher()
     }

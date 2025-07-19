@@ -311,6 +311,11 @@ struct FHIRQuantity: Codable {
 }
 
 /// SSM Health specific response model
+/// Simple Mercy API response - returns wait time in minutes
+struct MercyResponse: Codable {
+    let time: Int // Wait time in minutes
+}
+
 struct SSMHealthResponse: Codable {
     let facilityId: String
     let waitTime: SSMWaitTimeInfo
