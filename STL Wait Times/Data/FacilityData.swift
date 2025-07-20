@@ -1083,8 +1083,150 @@ struct FacilityData {
                 saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
                 sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
             )
+        ),
+        
+        // Lincoln Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-lincoln",
+            name: "Lincoln",
+            address: "Lincoln Location",  // Address TBD - using placeholder
+            city: "Lincoln",
+            state: "MO",
+            zipCode: "63084",  // Placeholder zipcode
+            phone: "(314) 000-0000",  // Placeholder phone
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.983242, longitude: -90.963305),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=202065110&latitude=38.983242&longitude=-90.963305&isGoHealthLocation=false",
+            websiteURL: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=202065110&latitude=38.983242&longitude=-90.963305&isGoHealthLocation=false",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // East Sunshine Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-east-sunshine",
+            name: "East Sunshine",
+            address: "East Sunshine Location",  // Address TBD - using placeholder
+            city: "Springfield",
+            state: "MO",
+            zipCode: "65804",  // Placeholder zipcode
+            phone: "(417) 000-0000",  // Placeholder phone
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 37.180938, longitude: -93.230136),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=471042110&latitude=37.180938&longitude=-93.230136&isGoHealthLocation=true",
+            websiteURL: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=471042110&latitude=37.180938&longitude=-93.230136&isGoHealthLocation=true",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // West Sunshine Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-west-sunshine",
+            name: "West Sunshine",
+            address: "West Sunshine Location",  // Address TBD - using placeholder
+            city: "Springfield",
+            state: "MO",
+            zipCode: "65807",  // Placeholder zipcode
+            phone: "(417) 000-0000",  // Placeholder phone
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 37.182499, longitude: -93.293991),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=471062110&latitude=37.182499&longitude=-93.293991&isGoHealthLocation=true",
+            websiteURL: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=471062110&latitude=37.182499&longitude=-93.293991&isGoHealthLocation=true",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // E. Battlefield Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-e-battlefield",
+            name: "E. Battlefield",
+            address: "E. Battlefield Location",  // Address TBD - using placeholder
+            city: "Springfield",
+            state: "MO",
+            zipCode: "65804",  // Placeholder zipcode
+            phone: "(417) 000-0000",  // Placeholder phone
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 37.159716, longitude: -93.283318),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=471012110&latitude=37.159716&longitude=-93.283318&isGoHealthLocation=true",
+            websiteURL: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=471012110&latitude=37.159716&longitude=-93.283318&isGoHealthLocation=true",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // Stone's Corner Mercy-GoHealth location
+        Facility(
+            id: "mercy-gohealth-stones-corner",
+            name: "Stone's Corner",
+            address: "Stone's Corner Location",  // Address TBD - using placeholder
+            city: "Joplin",
+            state: "MO",
+            zipCode: "64804",  // Placeholder zipcode
+            phone: "(417) 000-0000",  // Placeholder phone
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 37.143563, longitude: -94.511307),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=471092110&latitude=37.143563&longitude=-94.511307&isGoHealthLocation=true",
+            websiteURL: "https://www.mercy.net/content/mercy/us/en.waitTime?departmentId=471092110&latitude=37.143563&longitude=-94.511307&isGoHealthLocation=true",
+            operatingHours: OperatingHours(
+                monday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                tuesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                wednesday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                thursday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                friday: OperatingHours.DayHours(open: "08:00", close: "20:00"),
+                saturday: OperatingHours.DayHours(open: "09:00", close: "17:00"),
+                sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
+            )
+        ),
+        
+        // AFC Urgent Care Sedalia (Hospital ID 5955)
+        Facility(
+            id: "afc-sedalia-5955",
+            name: "Sedalia",
+            address: "115 W Broadway Blvd",
+            city: "Sedalia",
+            state: "MO",
+            zipCode: "65301",
+            phone: "(660) 951-1091",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.7044, longitude: -93.2282),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://api.clockwisemd.com/v1/hospitals/5955/waits",
+            websiteURL: "https://www.afcurgentcare.com/sedalia/",
+            operatingHours: .standardUrgentCare
         )
-        // Testing all fifty-three facilities (31 Total Access + 22 Mercy-GoHealth) with improved batch processing
+        // Testing all sixty facilities (31 Total Access + 28 Mercy-GoHealth + 1 AFC) with improved batch processing
     ]
     
     /// Emergency departments only

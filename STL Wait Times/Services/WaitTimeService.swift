@@ -13,6 +13,7 @@ public class WaitTimeService: ObservableObject {
     @Published var isLoading = false
     @Published var lastUpdateTime: Date?
     @Published var error: WaitTimeError?
+    @Published var refreshingFacilities: Set<String> = [] // Track which facilities are being refreshed
     
     // Circuit breaker state for each API endpoint
     private var circuitBreakerState: [String: CircuitBreakerState] = [:]
@@ -284,6 +285,47 @@ public class WaitTimeService: ObservableObject {
             .store(in: &cancellables)
     }
     
+    /// Fetches wait time for a single facility and updates the waitTimes dictionary
+    /// Used for manual refresh of individual facilities
+    func fetchSingleFacilityWaitTime(facility: Facility) {
+        print("🔄 Manual refresh requested for \(facility.name)")
+        
+        // Prevent multiple concurrent refreshes of the same facility
+        guard !refreshingFacilities.contains(facility.id) else {
+            print("⚠️ Facility \(facility.name) is already being refreshed")
+            return
+        }
+        
+        // Set loading state for this specific facility
+        DispatchQueue.main.async {
+            self.refreshingFacilities.insert(facility.id)
+        }
+        
+        fetchWaitTime(for: facility)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] completion in
+                    self?.refreshingFacilities.remove(facility.id)
+                    
+                    if case .failure(let error) = completion {
+                        print("❌ Manual refresh failed for \(facility.name): \(error)")
+                        self?.error = error
+                    }
+                },
+                receiveValue: { [weak self] waitTime in
+                    if let waitTime = waitTime {
+                        print("✅ Manual refresh successful for \(facility.name): \(waitTime.displayText)")
+                        self?.waitTimes[facility.id] = waitTime
+                        self?.lastUpdateTime = Date()
+                    } else {
+                        print("⚠️ Manual refresh returned no data for \(facility.name)")
+                        // Optionally set an "N/A" wait time or keep existing data
+                    }
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
     /// Fetches wait times for a batch of facilities in parallel
     private func fetchBatchWaitTimes(facilities: [Facility]) -> AnyPublisher<[WaitTime], WaitTimeError> {
         print("🔄 Starting batch of \(facilities.count) API calls...")
@@ -331,6 +373,17 @@ public class WaitTimeService: ObservableObject {
                     if let nsError = error as NSError? {
                         print("❌ \(facility.name): Error domain: \(nsError.domain), code: \(nsError.code)")
                     }
+                    
+                    // DETAILED N/A DEBUGGING
+                    if facility.name.contains("St. Peters") {
+                        print("🔍 ST. PETERS N/A DEBUG:")
+                        print("   - Facility ID: \(facility.id)")
+                        print("   - API Endpoint: \(facility.apiEndpoint ?? "nil")")
+                        print("   - Website URL: \(facility.websiteURL ?? "nil")")
+                        print("   - Error: \(error)")
+                        print("   - Error Type: \(type(of: error))")
+                    }
+                    
                     return Just(nil)
                 }
                 .eraseToAnyPublisher()
@@ -921,6 +974,18 @@ public class WaitTimeService: ObservableObject {
                 let duration = endTime.timeIntervalSince(startTime)
                 print("⏱️ \(facility.name): Request completed in \(String(format: "%.2f", duration))s")
                 
+                // DETAILED ST. PETERS API RESPONSE DEBUGGING
+                if facility.name.contains("St. Peters") {
+                    print("🔍 ST. PETERS API RESPONSE DEBUG:")
+                    print("   - Raw Response: \(response)")
+                    print("   - appointment_queues count: \(response.appointmentQueues?.count ?? 0)")
+                    if let queues = response.appointmentQueues {
+                        for (index, queue) in queues.enumerated() {
+                            print("   - Queue \(index): queueId=\(queue.queueId ?? -1), patients=\(queue.queueWaits?.currentPatientsInLine ?? -1)")
+                        }
+                    }
+                }
+                
                 let isKirkwood = facility.id == "total-access-12624"
                 if isKirkwood {
                     print("🟡 KIRKWOOD SUCCESS: API request completed successfully!")
@@ -1031,6 +1096,12 @@ public class WaitTimeService: ObservableObject {
                 let duration = endTime.timeIntervalSince(startTime)
                 print("⏱️ \(facility.name): Mercy request completed in \(String(format: "%.2f", duration))s")
                 
+                // DETAILED MERCY DEBUGGING
+                print("🔍 MERCY DEBUG for \(facility.name):")
+                print("   - Raw API Response: \(response)")
+                print("   - Wait Time: \(response.time) minutes")
+                print("   - Facility ID: \(facility.id)")
+                
                 let waitTime = WaitTime(
                     facilityId: facility.id,
                     waitMinutes: response.time,
@@ -1041,7 +1112,10 @@ public class WaitTimeService: ObservableObject {
                     waitTimeRange: nil
                 )
                 
-                print("✅ \(facility.name): Mercy success - \(response.time) min")
+                print("✅ \(facility.name): Created Mercy WaitTime object - \(response.time) minutes")
+                print("✅ \(facility.name): WaitTime.waitMinutes = \(waitTime.waitMinutes)")
+                print("✅ \(facility.name): WaitTime.status = \(waitTime.status)")
+                
                 return waitTime
             }
             .catch { error -> AnyPublisher<WaitTime?, WaitTimeError> in
@@ -1372,8 +1446,8 @@ public class WaitTimeService: ObservableObject {
                     patientsInLine += queuePatients
                     individualQueueCounts.append(queuePatients)
                     
-                    // Capture wait time range from first queue with valid data
-                    if waitTimeRange == nil, let range = queueWaits.currentWaitRange, range != "N/A" {
+                    // Capture wait time range from first queue with valid data (ignore N/A ranges)
+                    if waitTimeRange == nil, let range = queueWaits.currentWaitRange, range != "N/A" && !range.isEmpty {
                         waitTimeRange = range
                         print("         → Captured waitTimeRange: '\(range)'")
                     }

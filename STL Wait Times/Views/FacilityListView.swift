@@ -147,6 +147,23 @@ struct FacilityRowView: View {
                 
                 Spacer()
                 
+                // Refresh button (only show for facilities with N/A or stale data)
+                if viewModel.shouldShowRefreshOption(for: facility) && !viewModel.isRefreshing(facility) {
+                    Button(action: {
+                        print("🔄 Refresh button tapped for \(facility.name)")
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                        impactFeedback.impactOccurred()
+                        viewModel.refreshSingleFacility(facility)
+                    }) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                            .padding(4)
+                            .background(Circle().fill(.blue.opacity(0.1)))
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                
                 // Wait time indicators
                 waitTimeIndicators
             }
@@ -162,12 +179,26 @@ struct FacilityRowView: View {
     
     private var waitTimeIndicators: some View {
         VStack(alignment: .trailing, spacing: 4) {
-            // Primary wait time
-            waitTimeChip(
-                text: viewModel.waitTimeDisplayString(for: facility),
-                source: viewModel.waitTimeSourceString(for: facility),
-                isStale: viewModel.waitTime(for: facility)?.isStale ?? false
-            )
+            // Show loading indicator if refreshing, otherwise show wait time
+            if viewModel.isRefreshing(facility) {
+                HStack(spacing: 4) {
+                    ProgressView()
+                        .scaleEffect(x: 0.8, y: 0.8)
+                    Text("Refreshing...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+            } else {
+                // Primary wait time
+                waitTimeChip(
+                    text: viewModel.waitTimeDisplayString(for: facility),
+                    source: viewModel.waitTimeSourceString(for: facility),
+                    isStale: viewModel.waitTime(for: facility)?.isStale ?? false
+                )
+            }
             
             // CMS average for EDs
             if facility.facilityType == .emergencyDepartment,

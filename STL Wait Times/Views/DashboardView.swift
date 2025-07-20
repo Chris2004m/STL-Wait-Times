@@ -655,7 +655,7 @@ struct DashboardView: View {
             MedicalFacility(
                 id: facility.id,
                 name: getTAUCDisplayName(for: facility),
-                type: facility.facilityType == .emergencyDepartment ? "ER" : (facility.id.hasPrefix("total-access") ? "TAUC" : (facility.id.hasPrefix("mercy-gohealth") ? "Mercy" : "UC")),
+                type: facility.facilityType == .emergencyDepartment ? "ER" : (facility.id.hasPrefix("total-access") ? "TAUC" : (facility.id.hasPrefix("mercy-gohealth") ? "Mercy" : (facility.id.hasPrefix("afc-") ? "AFC" : "UC"))),
                 waitTime: getRealWaitTime(for: facility),
                 waitDetails: getWaitDetails(for: facility),
                 distance: calculateDistance(to: facility),
@@ -774,6 +774,7 @@ struct FacilityCard: View {
     
     // Add navigation-related properties
     @StateObject private var simpleNavigationManager = SimpleNavigationManager.shared
+    @StateObject private var waitTimeService = WaitTimeService.shared
     @State private var isNavigating = false
     @State private var showingNavigationAlert = false
     @State private var navigationError: NavigationError?
@@ -842,17 +843,35 @@ struct FacilityCard: View {
                 
                 // Right: Status and Navigation
                 VStack(alignment: .trailing, spacing: 8) {
-                    // Status
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("Status")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .textCase(.uppercase)
-                            .kerning(0.2)
+                    // Status with refresh button
+                    HStack(spacing: 8) {
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("Status")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .textCase(.uppercase)
+                                .kerning(0.2)
+                            
+                            Text(facility.status)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(facility.isOpen ? .green : .red)
+                        }
                         
-                        Text(facility.status)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(facility.isOpen ? .green : .red)
+                        // Refresh button (show for all facilities)
+                        Button(action: {
+                            print("🔄 Dashboard refresh tapped for \(facility.name)")
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                            impactFeedback.impactOccurred()
+                            refreshFacility(facility)
+                        }) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.blue)
+                                .padding(6)
+                                .background(Circle().fill(.blue.opacity(0.1)))
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .disabled(isFacilityRefreshing(facility))
                     }
                     
                     // Navigate Button
@@ -1044,6 +1063,34 @@ struct FacilityCard: View {
         case .medium, .expanded:
             return nil
         }
+    }
+    
+    // MARK: - Refresh Functionality
+    
+    /// Check if facility should show refresh button
+    private func shouldShowRefreshButton(for facility: MedicalFacility) -> Bool {
+        // Show refresh button for all facilities
+        return true
+    }
+    
+    /// Check if facility is currently being refreshed
+    private func isFacilityRefreshing(_ facility: MedicalFacility) -> Bool {
+        return waitTimeService.refreshingFacilities.contains(facility.id)
+    }
+    
+    /// Refresh wait time for a specific facility
+    private func refreshFacility(_ facility: MedicalFacility) {
+        // Look up the actual Facility object from FacilityData using the ID
+        guard let actualFacility = FacilityData.allFacilities.first(where: { $0.id == facility.id }) else {
+            print("❌ Could not find facility \(facility.name) in FacilityData")
+            return
+        }
+        
+        print("🔍 Found actual facility: \(actualFacility.name)")
+        print("   - API Endpoint: \(actualFacility.apiEndpoint ?? "NONE")")
+        print("   - Website URL: \(actualFacility.websiteURL ?? "NONE")")
+        
+        waitTimeService.fetchSingleFacilityWaitTime(facility: actualFacility)
     }
 }
 

@@ -187,7 +187,7 @@ class FacilityListViewModel: ObservableObject {
     }
     
     func waitTimeSourceString(for facility: Facility) -> String {
-        guard let waitTime = waitTime(for: facility) else {
+        guard waitTime(for: facility) != nil else {
             return ""
         }
         
@@ -225,6 +225,36 @@ class FacilityListViewModel: ObservableObject {
     
     func clearError() {
         errorMessage = nil
+    }
+    
+    // MARK: - Manual Refresh
+    
+    /// Refreshes wait time for a single facility
+    func refreshSingleFacility(_ facility: Facility) {
+        print("🔄 Manual refresh requested for \(facility.name)")
+        waitTimeService.fetchSingleFacilityWaitTime(facility: facility)
+    }
+    
+    /// Checks if a facility is currently being refreshed
+    func isRefreshing(_ facility: Facility) -> Bool {
+        return waitTimeService.refreshingFacilities.contains(facility.id)
+    }
+    
+    /// Checks if a facility should show the refresh option
+    func shouldShowRefreshOption(for facility: Facility) -> Bool {
+        // For testing purposes, show refresh button for all Total Access facilities
+        // or facilities with no/stale data
+        if facility.id.hasPrefix("total-access") {
+            return true
+        }
+        
+        guard let waitTime = waitTime(for: facility) else {
+            // No wait time data - show refresh option
+            return true
+        }
+        
+        // Show refresh option if data is stale or shows "N/A"
+        return waitTime.isStale || waitTime.displayText.contains("N/A") || waitTime.displayText.contains("No data")
     }
     
     // MARK: - Cleanup
