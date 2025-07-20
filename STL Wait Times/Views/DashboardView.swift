@@ -299,25 +299,6 @@ struct DashboardView: View {
                 
                 Spacer()
                 
-                HStack(spacing: 12) {
-                    Button {
-                        // Share action
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .foregroundColor(.primary)
-                            .font(.system(size: 16, weight: .medium))
-                    }
-                    
-                    // Profile avatar
-                    Circle()
-                        .fill(DashboardConstants.primaryBlue)
-                        .frame(width: 32, height: 32)
-                        .overlay(
-                            Text("P")
-                                .foregroundColor(.white)
-                                .font(.system(size: 14, weight: .semibold))
-                        )
-                }
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 16)
