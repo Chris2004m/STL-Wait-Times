@@ -52,6 +52,10 @@ struct FacilityListView: View {
                     }
                 }
             }
+            .onAppear {
+                // Ensure driving time calculations are triggered when view appears
+                viewModel.onViewAppear()
+            }
         }
     }
     
@@ -93,6 +97,7 @@ struct FacilityListView: View {
                 viewModel.applyFilter()
             }
             
+            
             // Sort indicator
             HStack {
                 Text("Sorted by: \(viewModel.sortOption.displayName)")
@@ -128,6 +133,7 @@ struct FacilityListView: View {
 struct FacilityRowView: View {
     let facility: Facility
     @ObservedObject var viewModel: FacilityListViewModel
+    @ObservedObject private var locationService = LocationService.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -138,10 +144,46 @@ struct FacilityRowView: View {
                         .font(.headline)
                         .lineLimit(2)
                     
-                    if let distance = viewModel.formattedDistance(to: facility) {
-                        Text(distance)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    // Distance and driving time info
+                    HStack(spacing: 4) {
+                        if let distance = viewModel.formattedDistance(to: facility) {
+                            Text(distance)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        // Always show driving time section if we have location
+                        if locationService.currentLocation != nil {
+                            Text("•")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            HStack(spacing: 2) {
+                                Image(systemName: "car.fill")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.secondary)
+                                
+                                if let drivingTime = viewModel.formattedDrivingTime(to: facility) {
+                                    Text(drivingTime)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                } else if locationService.isDrivingTimeLoading.contains(facility.id) {
+                                    Text("Loading...")
+                                        .font(.caption)
+                                        .foregroundColor(.orange)
+                                } else {
+                                    Text("Calculating...")
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                        .onAppear {
+                                            // Trigger calculation if not already loading
+                                            if !locationService.isDrivingTimeLoading.contains(facility.id) {
+                                                locationService.calculateDrivingTime(to: facility)
+                                            }
+                                        }
+                                }
+                            }
+                        }
                     }
                 }
                 

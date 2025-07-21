@@ -63,6 +63,10 @@ struct DashboardView: View {
     // Trigger ID to force map recenter even when coordinates haven't changed
     @State private var recenterTrigger: UUID? = nil
     
+    // MARK: - Display Toggle State
+    @State private var showPatientsInLine: Bool = false // true = patients, false = wait time (default: show wait time)
+    @State private var isGlobalRefreshing: Bool = false // Track global refresh state
+    
     // MARK: - 3D Map Properties
     @State private var mapMode: MapDisplayMode = .hybrid2D
     
@@ -299,6 +303,76 @@ struct DashboardView: View {
                 
                 Spacer()
                 
+                // DEBUG: Test button for driving time calculation
+                Button("🧪 Test Drive Time") {
+                    LocationService.shared.testDrivingTimeCalculation()
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.orange)
+                .foregroundColor(.white)
+                .font(.system(size: 11, weight: .medium))
+                .cornerRadius(6)
+                
+                // Header Action Buttons - Responsive layout
+                HStack(spacing: hasNAFacilities && hasClockwiseMDFacilities ? 8 : 12) {
+                    // Global Refresh Button (only show if there are N/A facilities)
+                    if hasNAFacilities {
+                        Button(action: {
+                            refreshNAFacilities()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: isGlobalRefreshing ? "arrow.clockwise" : "arrow.clockwise")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .rotationEffect(.degrees(isGlobalRefreshing ? 360 : 0))
+                                    .animation(isGlobalRefreshing ? .linear(duration: 1.0).repeatForever(autoreverses: false) : .default, value: isGlobalRefreshing)
+                                Text("Refresh")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .lineLimit(1)
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, hasClockwiseMDFacilities ? 8 : 12)
+                            .padding(.vertical, 6)
+                            .background(isGlobalRefreshing ? Color.orange : Color.green)
+                            .cornerRadius(8)
+                        }
+                        .disabled(isGlobalRefreshing)
+                        .accessibility(label: Text("Refresh facilities showing N/A"))
+                        .accessibility(hint: Text("Only refreshes facilities that currently show N/A wait times"))
+                    }
+                    
+                    // Display Toggle Button (only show if there are ClockwiseMD facilities)
+                    if hasClockwiseMDFacilities {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showPatientsInLine.toggle()
+                            }
+                            // Haptic feedback
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                            impactFeedback.impactOccurred()
+                            
+                            // Selection feedback
+                            let selectionFeedback = UISelectionFeedbackGenerator()
+                            selectionFeedback.selectionChanged()
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: showPatientsInLine ? "person.2.fill" : "clock.fill")
+                                    .font(.system(size: 11, weight: .medium))
+                                Text(showPatientsInLine ? "Patients" : "Time")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .lineLimit(1)
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, hasNAFacilities ? 8 : 12)
+                            .padding(.vertical, 6)
+                            .background(Color.blue)
+                            .cornerRadius(8)
+                        }
+                        .accessibility(label: Text(showPatientsInLine ? "Switch to wait time display" : "Switch to patients in line display"))
+                        .accessibility(hint: Text("Toggles between showing patient count and wait time for Total Access facilities"))
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true) // Prevent vertical expansion but allow horizontal flexibility
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 16)
@@ -355,10 +429,19 @@ struct DashboardView: View {
             print("✅ DashboardView: Sheet content appeared - setting up initial data")
             setupInitialMapRegion()
             fetchInitialWaitTimes()
+            triggerDrivingTimeCalculations()
         }
         .onReceive(locationService.$hasInitialLocation) { hasLocation in
             if hasLocation {
                 updateMapToUserLocation()
+                // Trigger driving time calculations when location becomes available
+                triggerDrivingTimeCalculations()
+            }
+        }
+        .onReceive(locationService.$currentLocation) { location in
+            if location != nil {
+                // Re-trigger driving time calculations when location updates
+                triggerDrivingTimeCalculations()
             }
         }
         .onReceive(waitTimeService.$waitTimes) { _ in
@@ -376,6 +459,64 @@ struct DashboardView: View {
             return facilityData // Show all facilities
         case .expanded:
             return facilityData // Show all facilities
+        }
+    }
+    
+    /// Check if there are any ClockwiseMD facilities that support both patients and wait time
+    private var hasClockwiseMDFacilities: Bool {
+        return FacilityData.allFacilities.contains { facility in
+            facility.id.hasPrefix("total-access") || facility.id.hasPrefix("afc-")
+        }
+    }
+    
+    /// Check if there are any facilities currently showing N/A
+    private var hasNAFacilities: Bool {
+        return facilityData.contains { facility in
+            facility.waitTime == "N/A"
+        }
+    }
+    
+    /// Get facilities that are currently showing N/A
+    private var naFacilities: [Facility] {
+        let naFacilityIds = facilityData.compactMap { facility in
+            facility.waitTime == "N/A" ? facility.id : nil
+        }
+        
+        return FacilityData.allFacilities.filter { facility in
+            naFacilityIds.contains(facility.id)
+        }
+    }
+    
+    /// Refresh only facilities that are currently showing N/A
+    private func refreshNAFacilities() {
+        let facilitiesToRefresh = naFacilities
+        
+        guard !facilitiesToRefresh.isEmpty else {
+            print("🔄 No N/A facilities to refresh")
+            return
+        }
+        
+        print("🔄 Global refresh: Refreshing \(facilitiesToRefresh.count) N/A facilities")
+        
+        // Start refresh state
+        isGlobalRefreshing = true
+        
+        // Haptic feedback for refresh start
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+        
+        // Fetch wait times for N/A facilities only
+        waitTimeService.fetchAllWaitTimes(facilities: facilitiesToRefresh)
+        
+        // Set a timer to reset the refresh state after a reasonable delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            self.isGlobalRefreshing = false
+            
+            // Success haptic feedback
+            let successFeedback = UINotificationFeedbackGenerator()
+            successFeedback.notificationOccurred(.success)
+            
+            print("✅ Global refresh completed for N/A facilities")
         }
     }
     
@@ -510,6 +651,61 @@ struct DashboardView: View {
         UIAccessibility.post(notification: .announcement, argument: announcement)
     }
     
+    /// Calculate driving time directly using coordinates
+    private func triggerDrivingTimeCalculations() {
+        guard let userLocation = locationService.currentLocation else {
+            print("🚗 DashboardView: No user location available")
+            return
+        }
+        
+        print("🚗 DashboardView: Calculating driving times for facilities using direct coordinates")
+        
+        let facilitiesToCalculate = Array(FacilityData.allFacilities.prefix(20))
+        
+        for facility in facilitiesToCalculate {
+            calculateDrivingTimeDirectly(from: userLocation, to: facility)
+        }
+    }
+    
+    /// Calculate driving time directly using known coordinates
+    private func calculateDrivingTimeDirectly(from userLocation: CLLocation, to facility: Facility) {
+        let userCoordinate = userLocation.coordinate
+        let facilityCoordinate = facility.coordinate
+        
+        print("🚗 Calculating route from (\(userCoordinate.latitude), \(userCoordinate.longitude)) to \(facility.name) at (\(facilityCoordinate.latitude), \(facilityCoordinate.longitude))")
+        
+        let request = MKDirections.Request()
+        request.source = MKMapItem(placemark: MKPlacemark(coordinate: userCoordinate))
+        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: facilityCoordinate))
+        request.transportType = .automobile
+        request.requestsAlternateRoutes = false
+        
+        let directions = MKDirections(request: request)
+        
+        directions.calculate { response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("❌ Failed to calculate driving time to \(facility.name): \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let route = response?.routes.first else {
+                    print("❌ No route found to \(facility.name)")
+                    return
+                }
+                
+                let travelTime = route.expectedTravelTime
+                let minutes = Int(travelTime / 60)
+                
+                // Update LocationService driving times cache
+                self.locationService.drivingTimes[facility.id] = travelTime
+                
+                print("🚗 ✅ Successfully calculated driving time to \(facility.name): \(minutes) minutes")
+                print("🚗 Current drivingTimes cache has \(self.locationService.drivingTimes.count) entries")
+            }
+        }
+    }
+    
     /// Find nearby facility annotation for tap-to-fly functionality
     private func findNearbyFacility(coordinate: CLLocationCoordinate2D) -> CustomMapAnnotation? {
         let tapLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
@@ -640,7 +836,6 @@ struct DashboardView: View {
                 waitTime: getRealWaitTime(for: facility),
                 waitDetails: getWaitDetails(for: facility),
                 distance: calculateDistance(to: facility),
-                waitChange: generateMockWaitChange(), // Keep hardcoded as requested
                 status: facility.statusString,
                 isOpen: facility.isCurrentlyOpen
             )
@@ -660,10 +855,24 @@ struct DashboardView: View {
         
         // Try to get real wait time from WaitTimeService
         if let waitTime = waitTimeService.getBestWaitTime(for: facility) {
-            // For TAUC facilities, show patient count instead of wait time
-            if facility.id.hasPrefix("total-access") {
-                return "\(waitTime.patientsInLine)"
+            // For ClockwiseMD facilities (Total Access + AFC), respect the toggle
+            if facility.id.hasPrefix("total-access") || facility.id.hasPrefix("afc-") {
+                if showPatientsInLine {
+                    return "\(waitTime.patientsInLine)"
+                } else {
+                    // Use next_available_visit for most accurate real-time wait time
+                    print("🔍 DEBUG Wait Time Display for \(facility.name):")
+                    print("   - waitTime.waitMinutes: \(waitTime.waitMinutes) (averaged range)")
+                    print("   - waitTime.nextAvailableSlot: \(waitTime.nextAvailableSlot) (actual next slot)")
+                    print("   - waitTime.waitTimeRange: \(waitTime.waitTimeRange ?? "nil")")
+                    
+                    // Prioritize nextAvailableSlot for most accurate wait time
+                    let displayWaitTime = waitTime.nextAvailableSlot
+                    print("   → Displaying: \(displayWaitTime) minutes (from nextAvailableSlot)")
+                    return "\(displayWaitTime)"
+                }
             } else {
+                // For other facilities (Mercy GoHealth), always show wait time
                 return "\(waitTime.waitMinutes)"
             }
         }
@@ -680,10 +889,11 @@ struct DashboardView: View {
     
     /// Get the appropriate wait details label for the facility
     private func getWaitDetails(for facility: Facility) -> String {
-        // For TAUC facilities, show "PATIENTS" instead of "MINUTES"
-        if facility.id.hasPrefix("total-access") {
-            return "PATIENTS"
+        // For ClockwiseMD facilities (Total Access + AFC), respect the toggle
+        if facility.id.hasPrefix("total-access") || facility.id.hasPrefix("afc-") {
+            return showPatientsInLine ? "PATIENTS" : "MINUTES"
         } else {
+            // For other facilities (Mercy GoHealth), always show "MINUTES"
             return "MINUTES"
         }
     }
@@ -705,10 +915,12 @@ struct DashboardView: View {
         }
     }
     
-    /// Calculate distance to facility
+    /// Calculate distance and driving time to facility in format "2.1 mi • 🚗 5min"
     private func calculateDistance(to facility: Facility) -> String {
+        // Get distance (either real location or fallback)
+        let distanceString: String
         if let distance = locationService.distance(to: facility) {
-            return locationService.formatDistance(distance)
+            distanceString = locationService.formatDistance(distance)
         } else {
             // Fallback calculation from St. Louis center
             let stlCenter = CLLocation(latitude: 38.6270, longitude: -90.1994)
@@ -717,14 +929,62 @@ struct DashboardView: View {
                 longitude: facility.coordinate.longitude
             )
             let distance = stlCenter.distance(from: facilityLocation)
-            return locationService.formatDistance(distance)
+            distanceString = locationService.formatDistance(distance)
+        }
+        
+        // Try to get driving time from LocationService
+        if let drivingTime = locationService.formatDrivingTime(to: facility) {
+            return "\(distanceString) • 🚗 \(drivingTime)"
+        } else {
+            // Return just distance if driving time not available
+            return distanceString
         }
     }
     
-    /// Generate mock wait time change until real implementation
-    private func generateMockWaitChange() -> String {
-        let changes = ["+2 min", "+5 min", "-3 min", "-1 min", "Same", "+1 min", "-2 min"]
-        return changes.randomElement() ?? "Same"
+    /// Parse wait time range (e.g., "12 - 27") and return the average
+    private func averageWaitTimeFromRange(_ range: String) -> Int {
+        // Handle common range formats: "12 - 27", "4-19", "15 to 30", etc.
+        let cleanRange = range.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Try different separators
+        let separators = [" - ", "-", " to ", "to"]
+        
+        for separator in separators {
+            let components = cleanRange.components(separatedBy: separator)
+            if components.count == 2 {
+                let trimmedComponents = components.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                
+                // Extract numbers from each component
+                if let minWait = extractNumber(from: trimmedComponents[0]),
+                   let maxWait = extractNumber(from: trimmedComponents[1]) {
+                    let average = (minWait + maxWait) / 2
+                    print("📊 Parsed wait time range '\(range)' → \(minWait)-\(maxWait) → avg: \(average)")
+                    return average
+                }
+            }
+        }
+        
+        // If parsing fails, try to extract a single number
+        if let singleNumber = extractNumber(from: cleanRange) {
+            print("📊 Parsed single wait time '\(range)' → \(singleNumber)")
+            return singleNumber
+        }
+        
+        print("⚠️ Failed to parse wait time range: '\(range)' - returning -1 to indicate parsing failure")
+        return -1 // Return -1 to indicate parsing failure
+    }
+    
+    /// Extract the first number from a string
+    private func extractNumber(from text: String) -> Int? {
+        let pattern = #"\d+"#
+        
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let range = Range(match.range, in: text) else {
+            return nil
+        }
+        
+        return Int(String(text[range]))
     }
 }
 
@@ -742,7 +1002,6 @@ struct MedicalFacility: Identifiable {
     let waitTime: String
     let waitDetails: String
     let distance: String
-    let waitChange: String
     let status: String
     let isOpen: Bool
 }
@@ -804,17 +1063,6 @@ struct FacilityCard: View {
                             Text(facility.distance)
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundColor(DashboardConstants.primaryBlue)
-                        }
-                        
-                        // Wait change
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(waitChangeColor)
-                                .frame(width: 8, height: 8)
-                            
-                            Text(facility.waitChange)
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(waitChangeColor)
                         }
                     }
                     .padding(.top, 4)
@@ -1008,15 +1256,6 @@ struct FacilityCard: View {
         }
     }
     
-    private var waitChangeColor: Color {
-        if facility.waitChange.contains("+") {
-            return DashboardConstants.waitTimeRed
-        } else if facility.waitChange.contains("-") {
-            return DashboardConstants.waitTimeGreen
-        } else {
-            return DashboardConstants.systemGray
-        }
-    }
     
     // MARK: - Card Display Logic
     private var cardPadding: CGFloat {

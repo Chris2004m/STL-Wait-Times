@@ -19,6 +19,16 @@
             "date": 1752818679221,
             "name": "/Users/chris/Desktop/Personal Projects/STL Wait Times/logs/mcp-puppeteer-2025-07-18.log",
             "hash": "348030deef06037ae091c9a086d3b85c58d83535ee024d5726bb9d64d92976e8"
+        },
+        {
+            "date": 1752983969694,
+            "name": "/Users/chris/Desktop/Personal Projects/STL Wait Times/logs/mcp-puppeteer-2025-07-19.log",
+            "hash": "ef18c29c2c153304c24096b4f8823a7a44dd2c4b4b30c6940829b63f45bf7e02"
+        },
+        {
+            "date": 1752984434252,
+            "name": "/Users/chris/Desktop/Personal Projects/STL Wait Times/logs/mcp-puppeteer-2025-07-20.log",
+            "hash": "6c913058b19caf8066069e479091a063a54ea775349835dc214cc86f5b4ee684"
         }
     ],
     "hashType": "sha256"

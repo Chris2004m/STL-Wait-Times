@@ -18,7 +18,10 @@ class FacilityListViewModel: ObservableObject {
     private let waitTimeService = WaitTimeService.shared
     private let locationService = LocationService.shared
     private var cancellables = Set<AnyCancellable>()
-    private var refreshTimer: Timer?
+    private var refreshTimer: DispatchSourceTimer?
+    private var isAutoRefreshing = false
+    private var lastAutoRefreshTime: Date?
+    private let autoRefreshInterval: TimeInterval = 120.0 // 2 minutes
     
     // MARK: - Enums
     enum SortOption: String, CaseIterable {
@@ -32,9 +35,19 @@ class FacilityListViewModel: ObservableObject {
     
     // MARK: - Initialization
     init() {
+        print("🚗 DEBUG: FacilityListViewModel init() starting")
         setupBindings()
         loadFacilities()
         setupRefreshTimer()
+        
+        // Force driving time calculations after a short delay to ensure facilities are loaded
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            print("🚗 DEBUG: Force triggering driving time calculations after init")
+            print("🚗 DEBUG: Current location at force trigger: \(self.locationService.currentLocation?.description ?? "nil")")
+            print("🚗 DEBUG: Facilities count at force trigger: \(self.facilities.count)")
+            self.calculateDrivingTimesForVisibleFacilities()
+        }
+        print("🚗 DEBUG: FacilityListViewModel init() completed")
     }
     
     // MARK: - Setup
@@ -42,8 +55,21 @@ class FacilityListViewModel: ObservableObject {
         // Bind location service
         locationService.$currentLocation
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
+            .sink { [weak self] location in
+                print("📍 DEBUG: FacilityListViewModel received location update: \(location?.description ?? "nil")")
                 self?.sortFacilities()
+                // Calculate driving times when location is available
+                if location != nil {
+                    print("🚗 DEBUG: Location available, triggering driving time calculations")
+                    print("🚗 DEBUG: Number of facilities to process: \(self?.facilities.count ?? 0)")
+                    print("🚗 DEBUG: Current selectedFacilityType: \(self?.selectedFacilityType.rawValue ?? "unknown")")
+                    // Add a small delay to ensure facilities array is populated
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        self?.calculateDrivingTimesForVisibleFacilities()
+                    }
+                } else {
+                    print("🚗 DEBUG: No location available for driving time calculations")
+                }
             }
             .store(in: &cancellables)
         
@@ -69,6 +95,10 @@ class FacilityListViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isLoading in
                 self?.isLoading = isLoading
+                // Reset auto-refresh flag when loading completes
+                if !isLoading {
+                    self?.isAutoRefreshing = false
+                }
             }
             .store(in: &cancellables)
         
@@ -78,32 +108,156 @@ class FacilityListViewModel: ObservableObject {
                 self?.errorMessage = error?.localizedDescription
             }
             .store(in: &cancellables)
+        
+        // Bind to driving times changes to trigger UI updates
+        locationService.$drivingTimes
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                // Force UI update when driving times change
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
     }
     
     private func setupRefreshTimer() {
-        // Auto-refresh every 2 minutes as specified in PRD
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 120.0, repeats: true) { [weak self] _ in
-            self?.refreshWaitTimes()
+        // Use DispatchSourceTimer for background-safe operation
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .background))
+        timer.schedule(deadline: .now() + autoRefreshInterval, repeating: autoRefreshInterval)
+        
+        timer.setEventHandler { [weak self] in
+            DispatchQueue.main.async {
+                self?.performAutoRefresh()
+            }
         }
+        
+        timer.resume()
+        refreshTimer = timer
+        
+        print("✅ Background auto-refresh timer started (every \(Int(autoRefreshInterval))s)")
     }
     
     // MARK: - Data Loading
     func loadFacilities() {
+        print("🚗 DEBUG: loadFacilities() starting")
         // Load all facilities from static data
         facilities = FacilityData.allFacilities
+        print("🚗 DEBUG: Loaded \(facilities.count) facilities from FacilityData.allFacilities")
         
         // Request location permission
         locationService.requestLocationPermission()
         
-        // Load wait times
-        refreshWaitTimes()
+        // Smart launch: Only fetch if we don't have recent data
+        if shouldFetchOnAppLaunch() {
+            print("🚀 App launch: Fetching fresh data (no recent cache)")
+            refreshWaitTimes()
+        } else {
+            print("🚀 App launch: Using cached data, background refresh will update")
+            // Still sort and filter with existing data
+            sortFacilities()
+        }
         
         // Apply initial filter
         applyFilter()
+        
+        // Trigger driving time calculations if location is already available
+        if locationService.currentLocation != nil {
+            print("🚗 DEBUG: Location already available at loadFacilities, triggering calculations")
+            DispatchQueue.main.async {
+                self.calculateDrivingTimesForVisibleFacilities()
+            }
+        } else {
+            print("🚗 DEBUG: No location available at loadFacilities")
+        }
+        print("🚗 DEBUG: loadFacilities() completed")
     }
     
+    /// Manual refresh triggered by user (pull-to-refresh, etc.)
     func refreshWaitTimes() {
-        print("🔄 DEBUG: refreshWaitTimes called")
+        print("🔄 Manual refresh requested")
+        
+        // Don't trigger new API calls if auto-refresh is already running
+        if isAutoRefreshing {
+            print("🔄 Auto-refresh in progress, showing latest data")
+            // Just refresh the UI with current data
+            sortFacilities()
+            return
+        }
+        
+        performDataRefresh(isManual: true)
+    }
+    
+    /// Background auto-refresh that runs every 2 minutes
+    private func performAutoRefresh() {
+        guard !isAutoRefreshing else {
+            print("🔄 Auto-refresh already in progress, skipping")
+            return
+        }
+        
+        // Check if enough time has passed since last refresh
+        if let lastRefresh = lastAutoRefreshTime {
+            let timeSinceLastRefresh = Date().timeIntervalSince(lastRefresh)
+            if timeSinceLastRefresh < autoRefreshInterval * 0.8 { // 80% of interval
+                print("🔄 Auto-refresh skipped - too soon since last refresh (\(Int(timeSinceLastRefresh))s ago)")
+                return
+            }
+        }
+        
+        print("🔄 Background auto-refresh triggered")
+        performDataRefresh(isManual: false)
+    }
+    
+    /// Determines if we should fetch data on app launch or use cached data
+    private func shouldFetchOnAppLaunch() -> Bool {
+        // If we have no cached data at all, definitely fetch
+        if waitTimes.isEmpty {
+            print("📊 App launch: No cached data available")
+            return true
+        }
+        
+        // Check if we have reasonably recent data for major facilities
+        let totalAccessFacilities = FacilityData.allFacilities.filter { 
+            $0.id.hasPrefix("total-access") || $0.apiEndpoint != nil 
+        }
+        
+        let facilitiesWithData = totalAccessFacilities.filter { facility in
+            waitTimes[facility.id] != nil
+        }
+        
+        // If we have data for less than 80% of facilities, fetch fresh data
+        let dataCompleteness = Double(facilitiesWithData.count) / Double(totalAccessFacilities.count)
+        if dataCompleteness < 0.8 {
+            print("📊 App launch: Incomplete data (\(facilitiesWithData.count)/\(totalAccessFacilities.count) facilities)")
+            return true
+        }
+        
+        // Check the age of our most recent data
+        let mostRecentUpdate = waitTimes.values
+            .map { $0.lastUpdated }
+            .max() ?? Date.distantPast
+        
+        let dataAge = Date().timeIntervalSince(mostRecentUpdate)
+        let maxAcceptableAge: TimeInterval = 300 // 5 minutes
+        
+        if dataAge > maxAcceptableAge {
+            print("📊 App launch: Data too old (\(Int(dataAge))s ago, max \(Int(maxAcceptableAge))s)")
+            return true
+        }
+        
+        print("📊 App launch: Recent data available (\(Int(dataAge))s old, \(Int(dataCompleteness * 100))% complete)")
+        return false
+    }
+    
+    /// Core refresh logic used by both manual and auto-refresh
+    private func performDataRefresh(isManual: Bool) {
+        guard !isAutoRefreshing else {
+            print("🔄 Refresh already in progress")
+            return
+        }
+        
+        isAutoRefreshing = true
+        lastAutoRefreshTime = Date()
+        
+        print("🔄 DEBUG: performDataRefresh called (manual: \(isManual))")
         print("🔄 DEBUG: FacilityData.allFacilities count: \(FacilityData.allFacilities.count)")
         
         // Include ALL Total Access facilities for refresh (both API and web scraping)
@@ -122,18 +276,28 @@ class FacilityListViewModel: ObservableObject {
             waitTimeService.fetchAllWaitTimes(facilities: totalAccessFacilities)
         } else {
             print("❌ No Total Access facilities found for refresh!")
+            isAutoRefreshing = false
         }
     }
     
     // MARK: - Filtering and Sorting
     func applyFilter() {
+        print("🔄 DEBUG: applyFilter() called - selectedFacilityType: \(selectedFacilityType.rawValue)")
+        
         switch selectedFacilityType {
         case .emergencyDepartment:
             facilities = FacilityData.emergencyDepartments
+            print("🔄 DEBUG: Loaded \(facilities.count) emergency departments")
         case .urgentCare:
             facilities = FacilityData.urgentCareCenters
+            print("🔄 DEBUG: Loaded \(facilities.count) urgent care centers")
         }
+        
         sortFacilities()
+        
+        // Trigger driving time calculations for newly filtered facilities
+        print("🔄 DEBUG: About to call calculateDrivingTimesForVisibleFacilities from applyFilter")
+        calculateDrivingTimesForVisibleFacilities()
     }
     
     func sortFacilities() {
@@ -157,6 +321,40 @@ class FacilityListViewModel: ObservableObject {
     func formattedDistance(to facility: Facility) -> String? {
         guard let distance = distance(to: facility) else { return nil }
         return locationService.formatDistance(distance)
+    }
+    
+    // MARK: - Driving Time Methods
+    func formattedDrivingTime(to facility: Facility) -> String? {
+        return locationService.formatDrivingTime(to: facility)
+    }
+    
+    func calculateDrivingTimesForVisibleFacilities() {
+        print("🚗 DEBUG: calculateDrivingTimesForVisibleFacilities() called")
+        
+        guard let currentLocation = locationService.currentLocation else {
+            print("🚗 DEBUG: No location available in calculateDrivingTimesForVisibleFacilities")
+            return
+        }
+        
+        print("🚗 DEBUG: Current location: \(currentLocation.coordinate.latitude), \(currentLocation.coordinate.longitude)")
+        
+        guard !facilities.isEmpty else {
+            print("🚗 DEBUG: No facilities available for driving time calculation")
+            print("🚗 DEBUG: facilities.count = \(facilities.count), selectedFacilityType = \(selectedFacilityType.rawValue)")
+            return
+        }
+        
+        // Calculate driving times for currently visible facilities
+        let visibleFacilities = facilities.prefix(20) // Limit to first 20 to avoid too many API calls
+        print("🚗 DEBUG: Starting driving time calculations for \(visibleFacilities.count) facilities")
+        print("🚗 DEBUG: Location status - hasLocation: \(locationService.currentLocation != nil), authStatus: \(locationService.authorizationStatus.rawValue)")
+        print("🚗 DEBUG: First few facility names: \(visibleFacilities.prefix(3).map { $0.name }.joined(separator: ", "))")
+        
+        for (index, facility) in visibleFacilities.enumerated() {
+            print("🚗 DEBUG: [\(index+1)/\(visibleFacilities.count)] Calculating driving time for \(facility.name) (ID: \(facility.id))")
+            print("🚗 DEBUG: Facility location: \(facility.coordinate.latitude), \(facility.coordinate.longitude)")
+            locationService.calculateDrivingTime(to: facility)
+        }
     }
     
     func waitTimeDisplayString(for facility: Facility) -> String {
@@ -227,6 +425,22 @@ class FacilityListViewModel: ObservableObject {
         errorMessage = nil
     }
     
+    /// Call this when the view appears to ensure driving times are calculated
+    func onViewAppear() {
+        print("🚗 DEBUG: onViewAppear() called")
+        print("🚗 DEBUG: Current location in onViewAppear: \(locationService.currentLocation?.description ?? "nil")")
+        print("🚗 DEBUG: Facilities count in onViewAppear: \(facilities.count)")
+        print("🚗 DEBUG: Selected facility type in onViewAppear: \(selectedFacilityType.rawValue)")
+        
+        // Trigger driving time calculations if we have location
+        if locationService.currentLocation != nil {
+            print("🚗 DEBUG: Location available in onViewAppear, calling calculateDrivingTimesForVisibleFacilities")
+            calculateDrivingTimesForVisibleFacilities()
+        } else {
+            print("🚗 DEBUG: No location available in onViewAppear")
+        }
+    }
+    
     // MARK: - Manual Refresh
     
     /// Refreshes wait time for a single facility
@@ -259,6 +473,7 @@ class FacilityListViewModel: ObservableObject {
     
     // MARK: - Cleanup
     deinit {
-        refreshTimer?.invalidate()
+        refreshTimer?.cancel()
+        refreshTimer = nil
     }
 } 

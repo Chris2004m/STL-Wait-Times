@@ -84,7 +84,7 @@ struct WaitTime: Identifiable {
     }
     
     var isStale: Bool {
-        Date().timeIntervalSince(lastUpdated) > 300 // 5 minutes
+        Date().timeIntervalSince(lastUpdated) > 600 // 10 minutes (extended buffer for auto-refresh)
     }
     
     /// Source of the wait time data
