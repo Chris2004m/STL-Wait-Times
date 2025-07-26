@@ -18,23 +18,17 @@ class BackgroundTaskService: ObservableObject {
     private init() {}
     
     func registerBackgroundTasks() {
-        print("🔄 BackgroundTaskService: Registering background tasks")
-        
         // Register background app refresh task
         BGTaskScheduler.shared.register(forTaskWithIdentifier: backgroundTaskIdentifier, using: nil) { task in
             self.handleBackgroundRefresh(task: task as! BGAppRefreshTask)
         }
-        
-        print("✅ BackgroundTaskService: Background tasks registered")
     }
     
     func appDidEnterBackground() {
-        print("📱 BackgroundTaskService: App entered background, scheduling refresh")
         scheduleBackgroundRefresh()
     }
     
     func appDidBecomeActive() {
-        print("📱 BackgroundTaskService: App became active")
         endBackgroundTask()
     }
     

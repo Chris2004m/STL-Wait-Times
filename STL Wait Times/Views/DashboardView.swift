@@ -303,16 +303,7 @@ struct DashboardView: View {
                 
                 Spacer()
                 
-                // DEBUG: Test button for driving time calculation
-                Button("🧪 Test Drive Time") {
-                    LocationService.shared.testDrivingTimeCalculation()
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.orange)
-                .foregroundColor(.white)
-                .font(.system(size: 11, weight: .medium))
-                .cornerRadius(6)
+
                 
                 // Header Action Buttons - Responsive layout
                 HStack(spacing: hasNAFacilities && hasClockwiseMDFacilities ? 8 : 12) {
@@ -429,19 +420,15 @@ struct DashboardView: View {
             print("✅ DashboardView: Sheet content appeared - setting up initial data")
             setupInitialMapRegion()
             fetchInitialWaitTimes()
-            triggerDrivingTimeCalculations()
         }
         .onReceive(locationService.$hasInitialLocation) { hasLocation in
             if hasLocation {
                 updateMapToUserLocation()
-                // Trigger driving time calculations when location becomes available
-                triggerDrivingTimeCalculations()
             }
         }
         .onReceive(locationService.$currentLocation) { location in
             if location != nil {
-                // Re-trigger driving time calculations when location updates
-                triggerDrivingTimeCalculations()
+                // Location updated - map will automatically update
             }
         }
         .onReceive(waitTimeService.$waitTimes) { _ in
@@ -651,60 +638,7 @@ struct DashboardView: View {
         UIAccessibility.post(notification: .announcement, argument: announcement)
     }
     
-    /// Calculate driving time directly using coordinates
-    private func triggerDrivingTimeCalculations() {
-        guard let userLocation = locationService.currentLocation else {
-            print("🚗 DashboardView: No user location available")
-            return
-        }
-        
-        print("🚗 DashboardView: Calculating driving times for facilities using direct coordinates")
-        
-        let facilitiesToCalculate = Array(FacilityData.allFacilities.prefix(20))
-        
-        for facility in facilitiesToCalculate {
-            calculateDrivingTimeDirectly(from: userLocation, to: facility)
-        }
-    }
-    
-    /// Calculate driving time directly using known coordinates
-    private func calculateDrivingTimeDirectly(from userLocation: CLLocation, to facility: Facility) {
-        let userCoordinate = userLocation.coordinate
-        let facilityCoordinate = facility.coordinate
-        
-        print("🚗 Calculating route from (\(userCoordinate.latitude), \(userCoordinate.longitude)) to \(facility.name) at (\(facilityCoordinate.latitude), \(facilityCoordinate.longitude))")
-        
-        let request = MKDirections.Request()
-        request.source = MKMapItem(placemark: MKPlacemark(coordinate: userCoordinate))
-        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: facilityCoordinate))
-        request.transportType = .automobile
-        request.requestsAlternateRoutes = false
-        
-        let directions = MKDirections(request: request)
-        
-        directions.calculate { response, error in
-            DispatchQueue.main.async {
-                if let error = error {
-                    print("❌ Failed to calculate driving time to \(facility.name): \(error.localizedDescription)")
-                    return
-                }
-                
-                guard let route = response?.routes.first else {
-                    print("❌ No route found to \(facility.name)")
-                    return
-                }
-                
-                let travelTime = route.expectedTravelTime
-                let minutes = Int(travelTime / 60)
-                
-                // Update LocationService driving times cache
-                self.locationService.drivingTimes[facility.id] = travelTime
-                
-                print("🚗 ✅ Successfully calculated driving time to \(facility.name): \(minutes) minutes")
-                print("🚗 Current drivingTimes cache has \(self.locationService.drivingTimes.count) entries")
-            }
-        }
-    }
+
     
     /// Find nearby facility annotation for tap-to-fly functionality
     private func findNearbyFacility(coordinate: CLLocationCoordinate2D) -> CustomMapAnnotation? {
@@ -932,13 +866,8 @@ struct DashboardView: View {
             distanceString = locationService.formatDistance(distance)
         }
         
-        // Try to get driving time from LocationService
-        if let drivingTime = locationService.formatDrivingTime(to: facility) {
-            return "\(distanceString) • 🚗 \(drivingTime)"
-        } else {
-            // Return just distance if driving time not available
-            return distanceString
-        }
+        // Return distance only (driving time feature removed)
+        return distanceString
     }
     
     /// Parse wait time range (e.g., "12 - 27") and return the average

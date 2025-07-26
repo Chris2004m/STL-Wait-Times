@@ -239,9 +239,11 @@ public class WaitTimeService: ObservableObject {
         
         // Process facilities in smart batches to avoid overwhelming the server
         let batchSize = 10
-        let batches = totalAccessFacilities.chunked(into: batchSize)
+        let batches = stride(from: 0, to: totalAccessFacilities.count, by: batchSize).map {
+            Array(totalAccessFacilities[$0..<min($0 + batchSize, totalAccessFacilities.count)])
+        }
         
-        Publishers.Sequence(sequence: batches.enumerated())
+        let batchPublisher = Publishers.Sequence(sequence: batches.enumerated())
             .flatMap { (batchIndex, batch) -> AnyPublisher<[WaitTime], WaitTimeError> in
                 print("📦 Processing batch \(batchIndex + 1) of \(batches.count) with \(batch.count) facilities...")
                 
@@ -282,7 +284,8 @@ public class WaitTimeService: ObservableObject {
                     self?.logWaitTimeStats(allWaitTimes)
                 }
             )
-            .store(in: &cancellables)
+        
+        batchPublisher.store(in: &cancellables)
     }
     
     /// Fetches wait time for a single facility and updates the waitTimes dictionary
@@ -635,7 +638,7 @@ public class WaitTimeService: ObservableObject {
                         
                         // Get context for validation
                         let fullMatchRange = Range(match.range, in: htmlContent)!
-                        let contextStart = max(htmlContent.startIndex, htmlContent.index(fullMatchRange.lowerBound, offsetBy: -100, limitedBy: htmlContent.startIndex) ?? htmlContent.startIndex)
+                        let _ = max(htmlContent.startIndex, htmlContent.index(fullMatchRange.lowerBound, offsetBy: -100, limitedBy: htmlContent.startIndex) ?? htmlContent.startIndex)
                         let contextEnd = min(htmlContent.endIndex, htmlContent.index(fullMatchRange.upperBound, offsetBy: 100, limitedBy: htmlContent.endIndex) ?? htmlContent.endIndex)
                         let matchedText = String(htmlContent[fullMatchRange])
                         

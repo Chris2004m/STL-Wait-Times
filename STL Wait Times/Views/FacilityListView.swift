@@ -158,31 +158,7 @@ struct FacilityRowView: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             
-                            HStack(spacing: 2) {
-                                Image(systemName: "car.fill")
-                                    .font(.system(size: 8))
-                                    .foregroundColor(.secondary)
-                                
-                                if let drivingTime = viewModel.formattedDrivingTime(to: facility) {
-                                    Text(drivingTime)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                } else if locationService.isDrivingTimeLoading.contains(facility.id) {
-                                    Text("Loading...")
-                                        .font(.caption)
-                                        .foregroundColor(.orange)
-                                } else {
-                                    Text("Calculating...")
-                                        .font(.caption)
-                                        .foregroundColor(.blue)
-                                        .onAppear {
-                                            // Trigger calculation if not already loading
-                                            if !locationService.isDrivingTimeLoading.contains(facility.id) {
-                                                locationService.calculateDrivingTime(to: facility)
-                                            }
-                                        }
-                                }
-                            }
+                            // Distance only (driving time feature removed)
                         }
                     }
                 }

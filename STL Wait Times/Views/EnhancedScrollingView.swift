@@ -121,7 +121,6 @@ struct EnhancedScrollingView<Item: Identifiable, Content: View>: View {
                         }
                     }
                 }
-                .padding(.bottom, configuration.bottomPadding)
                 .background(
                     GeometryReader { geometry in
                         Color.clear
@@ -131,11 +130,16 @@ struct EnhancedScrollingView<Item: Identifiable, Content: View>: View {
             }
             .coordinateSpace(name: "scrollView")
             .scrollDisabled(false) // Ensure scrolling is always enabled
+            .scrollIndicators(.hidden) // Hide default indicators since we manage them
+            .contentMargins(.bottom, configuration.bottomPadding, for: .scrollContent)
             .simultaneousGesture(
                 // Enable scroll gestures to work alongside sheet drag gestures
-                DragGesture()
-                    .onChanged { _ in
-                        // Allow scroll gestures to process
+                DragGesture(minimumDistance: 10, coordinateSpace: .local)
+                    .onChanged { value in
+                        // Only process vertical scroll gestures
+                        if abs(value.translation.height) > abs(value.translation.width) {
+                            // This is a vertical scroll, let ScrollView handle it
+                        }
                     }
             )
             .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in

@@ -79,10 +79,9 @@ struct SimpleBottomSheetView<Content: View>: View {
                 // Background overlay that dims based on sheet state
                 backgroundOverlay(geometry: geometry)
                 
-                // Main sheet content with swipe gesture
+                // Main sheet content
                 sheetContent(geometry: geometry)
                     .offset(y: offsetForCurrentState(geometry: geometry))
-                    .gesture(swipeGesture(geometry: geometry))
                     .animation(sheetAnimation, value: state)
             }
         }
@@ -103,11 +102,20 @@ struct SimpleBottomSheetView<Content: View>: View {
     @ViewBuilder
     private func sheetContent(geometry: GeometryProxy) -> some View {
         VStack(spacing: 0) {
-            // Drag handle
-            dragHandle
-                .padding(.top, configuration.handlePadding)
+            // Drag handle with gesture area
+            VStack(spacing: 0) {
+                dragHandle
+                    .padding(.top, configuration.handlePadding)
+                
+                // Extended gesture area for easier interaction
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(height: 20)
+            }
+            .contentShape(Rectangle()) // Make entire area tappable
+            .gesture(swipeGesture(geometry: geometry)) // Apply gesture only to handle area
             
-            // Content area
+            // Content area - no gesture interference
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()

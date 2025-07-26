@@ -35,19 +35,11 @@ class FacilityListViewModel: ObservableObject {
     
     // MARK: - Initialization
     init() {
-        print("🚗 DEBUG: FacilityListViewModel init() starting")
         setupBindings()
         loadFacilities()
         setupRefreshTimer()
         
-        // Force driving time calculations after a short delay to ensure facilities are loaded
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            print("🚗 DEBUG: Force triggering driving time calculations after init")
-            print("🚗 DEBUG: Current location at force trigger: \(self.locationService.currentLocation?.description ?? "nil")")
-            print("🚗 DEBUG: Facilities count at force trigger: \(self.facilities.count)")
-            self.calculateDrivingTimesForVisibleFacilities()
-        }
-        print("🚗 DEBUG: FacilityListViewModel init() completed")
+
     }
     
     // MARK: - Setup
@@ -56,19 +48,10 @@ class FacilityListViewModel: ObservableObject {
         locationService.$currentLocation
             .receive(on: DispatchQueue.main)
             .sink { [weak self] location in
-                print("📍 DEBUG: FacilityListViewModel received location update: \(location?.description ?? "nil")")
                 self?.sortFacilities()
                 // Calculate driving times when location is available
                 if location != nil {
-                    print("🚗 DEBUG: Location available, triggering driving time calculations")
-                    print("🚗 DEBUG: Number of facilities to process: \(self?.facilities.count ?? 0)")
-                    print("🚗 DEBUG: Current selectedFacilityType: \(self?.selectedFacilityType.rawValue ?? "unknown")")
-                    // Add a small delay to ensure facilities array is populated
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        self?.calculateDrivingTimesForVisibleFacilities()
-                    }
-                } else {
-                    print("🚗 DEBUG: No location available for driving time calculations")
+                    // Location is now available for distance calculations
                 }
             }
             .store(in: &cancellables)
@@ -109,14 +92,7 @@ class FacilityListViewModel: ObservableObject {
             }
             .store(in: &cancellables)
         
-        // Bind to driving times changes to trigger UI updates
-        locationService.$drivingTimes
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                // Force UI update when driving times change
-                self?.objectWillChange.send()
-            }
-            .store(in: &cancellables)
+
     }
     
     private func setupRefreshTimer() {
@@ -160,15 +136,7 @@ class FacilityListViewModel: ObservableObject {
         applyFilter()
         
         // Trigger driving time calculations if location is already available
-        if locationService.currentLocation != nil {
-            print("🚗 DEBUG: Location already available at loadFacilities, triggering calculations")
-            DispatchQueue.main.async {
-                self.calculateDrivingTimesForVisibleFacilities()
-            }
-        } else {
-            print("🚗 DEBUG: No location available at loadFacilities")
-        }
-        print("🚗 DEBUG: loadFacilities() completed")
+        // Facilities loaded - location-based sorting will happen automatically
     }
     
     /// Manual refresh triggered by user (pull-to-refresh, etc.)
@@ -295,9 +263,7 @@ class FacilityListViewModel: ObservableObject {
         
         sortFacilities()
         
-        // Trigger driving time calculations for newly filtered facilities
-        print("🔄 DEBUG: About to call calculateDrivingTimesForVisibleFacilities from applyFilter")
-        calculateDrivingTimesForVisibleFacilities()
+        // Facilities filtered and sorted by distance/wait time
     }
     
     func sortFacilities() {
@@ -323,39 +289,7 @@ class FacilityListViewModel: ObservableObject {
         return locationService.formatDistance(distance)
     }
     
-    // MARK: - Driving Time Methods
-    func formattedDrivingTime(to facility: Facility) -> String? {
-        return locationService.formatDrivingTime(to: facility)
-    }
-    
-    func calculateDrivingTimesForVisibleFacilities() {
-        print("🚗 DEBUG: calculateDrivingTimesForVisibleFacilities() called")
-        
-        guard let currentLocation = locationService.currentLocation else {
-            print("🚗 DEBUG: No location available in calculateDrivingTimesForVisibleFacilities")
-            return
-        }
-        
-        print("🚗 DEBUG: Current location: \(currentLocation.coordinate.latitude), \(currentLocation.coordinate.longitude)")
-        
-        guard !facilities.isEmpty else {
-            print("🚗 DEBUG: No facilities available for driving time calculation")
-            print("🚗 DEBUG: facilities.count = \(facilities.count), selectedFacilityType = \(selectedFacilityType.rawValue)")
-            return
-        }
-        
-        // Calculate driving times for currently visible facilities
-        let visibleFacilities = facilities.prefix(20) // Limit to first 20 to avoid too many API calls
-        print("🚗 DEBUG: Starting driving time calculations for \(visibleFacilities.count) facilities")
-        print("🚗 DEBUG: Location status - hasLocation: \(locationService.currentLocation != nil), authStatus: \(locationService.authorizationStatus.rawValue)")
-        print("🚗 DEBUG: First few facility names: \(visibleFacilities.prefix(3).map { $0.name }.joined(separator: ", "))")
-        
-        for (index, facility) in visibleFacilities.enumerated() {
-            print("🚗 DEBUG: [\(index+1)/\(visibleFacilities.count)] Calculating driving time for \(facility.name) (ID: \(facility.id))")
-            print("🚗 DEBUG: Facility location: \(facility.coordinate.latitude), \(facility.coordinate.longitude)")
-            locationService.calculateDrivingTime(to: facility)
-        }
-    }
+
     
     func waitTimeDisplayString(for facility: Facility) -> String {
         guard let waitTime = waitTime(for: facility) else {
@@ -432,13 +366,7 @@ class FacilityListViewModel: ObservableObject {
         print("🚗 DEBUG: Facilities count in onViewAppear: \(facilities.count)")
         print("🚗 DEBUG: Selected facility type in onViewAppear: \(selectedFacilityType.rawValue)")
         
-        // Trigger driving time calculations if we have location
-        if locationService.currentLocation != nil {
-            print("🚗 DEBUG: Location available in onViewAppear, calling calculateDrivingTimesForVisibleFacilities")
-            calculateDrivingTimesForVisibleFacilities()
-        } else {
-            print("🚗 DEBUG: No location available in onViewAppear")
-        }
+        // View appeared - location-based functionality will work automatically
     }
     
     // MARK: - Manual Refresh
