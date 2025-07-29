@@ -368,25 +368,7 @@ struct DashboardView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 16)
             
-            // Search Bar (only show when expanded)
-            if sheetState == .expanded {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 14))
-                    Text("Search to add facilities")
-                        .foregroundColor(.secondary)
-                        .font(.system(size: 16))
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 16)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
+
             
             // Enhanced Facility List with smooth scrolling
             EnhancedScrollingView(
