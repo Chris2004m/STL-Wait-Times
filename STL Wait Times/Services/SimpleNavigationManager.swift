@@ -12,6 +12,7 @@ import MapboxNavigationUIKit
 import MapboxDirections
 import CoreLocation
 import MapKit
+import Contacts
 
 /// Simplified navigation manager that handles basic navigation functionality
 /// Compatible with the latest Mapbox Navigation SDK
@@ -67,15 +68,37 @@ class SimpleNavigationManager: ObservableObject {
         completion: @escaping (Result<Void, NavigationError>) -> Void
     ) {
         
-        // For now, let's use the system's built-in navigation
-        // This is more reliable and doesn't require complex SDK integration
+        print("🗺️ Navigation: Starting navigation to \(facility.name)")
+        print("   📍 Address: \(facility.address), \(facility.city), \(facility.state) \(facility.zipCode)")
+        print("   🎯 Coordinates: \(facility.coordinate.latitude), \(facility.coordinate.longitude)")
         
-        let destination = facility.coordinate
-        let placemark = MKPlacemark(coordinate: destination)
+        // Create a proper placemark with full address information for Apple Maps
+        // This ensures Maps can display the correct address and location
+        let addressDict: [String: Any] = [
+            CNPostalAddressStreetKey: facility.address,
+            CNPostalAddressCityKey: facility.city,
+            CNPostalAddressStateKey: facility.state,
+            CNPostalAddressPostalCodeKey: facility.zipCode,
+            CNPostalAddressCountryKey: "United States"
+        ]
+        
+        let placemark = MKPlacemark(
+            coordinate: facility.coordinate,
+            addressDictionary: addressDict
+        )
+        
         let mapItem = MKMapItem(placemark: placemark)
         mapItem.name = facility.name
         
-        // Open in Maps app for navigation
+        // Format the full address for the accessibility announcement
+        let fullAddress = "\(facility.address), \(facility.city), \(facility.state) \(facility.zipCode)"
+        
+        print("🚀 Navigation: Opening Apple Maps with:")
+        print("   🏥 Name: \(facility.name)")
+        print("   📮 Full Address: \(fullAddress)")
+        print("   📍 Coordinates: \(facility.coordinate.latitude), \(facility.coordinate.longitude)")
+        
+        // Open in Maps app for navigation with driving directions
         MKMapItem.openMaps(with: [mapItem], launchOptions: [
             MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving
         ])
@@ -83,12 +106,12 @@ class SimpleNavigationManager: ObservableObject {
         // Update state temporarily
         isNavigating = true
         
-        // Provide feedback
+        // Provide haptic feedback
         let feedback = UIImpactFeedbackGenerator(style: .medium)
         feedback.impactOccurred()
         
-        // Announce for accessibility
-        let announcement = "Opening navigation to \(facility.name) in Maps"
+        // Announce for accessibility with full address
+        let announcement = "Opening navigation to \(facility.name) at \(fullAddress) in Maps"
         UIAccessibility.post(notification: .announcement, argument: announcement)
         
         // Reset navigation state after Maps opens (brief delay)

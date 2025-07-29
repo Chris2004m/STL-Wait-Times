@@ -409,7 +409,10 @@ struct DashboardView: View {
                 FacilityCard(
                     facility: facility,
                     isFirstCard: index == 0,
-                    sheetState: sheetState
+                    sheetState: sheetState,
+                    onTap: {
+                        handleFacilityTap(facility)
+                    }
                 )
             }
             
@@ -651,35 +654,87 @@ struct DashboardView: View {
         }
     }
     
-    /// Handle facility annotation selection
-    /// - Parameter annotation: The selected 3D facility annotation
-    // Note: Temporarily commented out since MapboxView doesn't support this callback yet
-    /*
-    private func handleFacilitySelection(_ annotation: MedicalFacility3DAnnotation) {
-        // Update selected facility
-        selectedFacilityId = annotation.id
+    /// Handle facility card tap to center map on facility location with building-level precision
+    /// - Parameter facility: The tapped medical facility
+    private func handleFacilityTap(_ facility: MedicalFacility) {
+        print("🏥 Facility tapped: \(facility.name)")
         
-        // Animate to show facility details in bottom sheet
+        // Find the actual facility data with coordinates
+        guard let realFacility = FacilityData.allFacilities.first(where: { $0.id == facility.id }) else {
+            print("❌ Could not find facility coordinates for \(facility.name)")
+            return
+        }
+        
+        // Update selected facility for highlighting
+        selectedFacilityId = facility.id
+        
+        // Use building-level zoom with very tight coordinate spans for precise location viewing
+        // 0.001 delta ≈ 111 meters, 0.002 delta ≈ 222 meters - perfect for seeing individual buildings
+        let span = MKCoordinateSpan(
+            latitudeDelta: 0.002,  // Building-level precision (~222m view radius)
+            longitudeDelta: 0.002  // Tight enough to see exact building location
+        )
+        
+        let targetRegion = MKCoordinateRegion(
+            center: realFacility.coordinate,
+            span: span
+        )
+        
+        print("🎯 Centering map on \(realFacility.name)")
+        print("   📍 Address: \(realFacility.address), \(realFacility.city), \(realFacility.state) \(realFacility.zipCode)")
+        print("   🗺️ Coordinates: \(realFacility.coordinate.latitude), \(realFacility.coordinate.longitude)")
+        print("   🔍 Zoom Level: Building-level precision (0.002° span = ~222m radius)")
+        
+        // Special logging for O'Fallon, IL facility to verify correct coordinates
+        if facility.id == "total-access-15884" {
+            print("✅ TESTING: O'Fallon, IL facility detected!")
+            print("   🏢 Expected Address: 1103 Central Park Dr, O'Fallon, IL 62269")
+            print("   📍 Expected Coordinates: (38.5906, -89.9107)")
+            print("   🎯 Actual Coordinates: (\(realFacility.coordinate.latitude), \(realFacility.coordinate.longitude))")
+            
+            // Verify coordinates match expected values
+            let expectedLat = 38.5906
+            let expectedLon = -89.9107
+            let latMatch = abs(realFacility.coordinate.latitude - expectedLat) < 0.0001
+            let lonMatch = abs(realFacility.coordinate.longitude - expectedLon) < 0.0001
+            
+            if latMatch && lonMatch {
+                print("   ✅ COORDINATES VERIFIED: Exact match with expected building location!")
+            } else {
+                print("   ❌ COORDINATE MISMATCH: Check FacilityData for correct coordinates")
+            }
+        }
+        
+        // Animate to the facility location with smooth transition
+        withAnimation(.easeInOut(duration: 1.5)) {
+            region = targetRegion
+        }
+        
+        // Trigger recenter to ensure MapboxView updates even if coordinates are the same
+        recenterTrigger = UUID()
+        
+        // Reset the recenter trigger after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            recenterTrigger = nil
+        }
+        
+        // Collapse bottom sheet to medium to show more of the map
         withAnimation(.spring(response: DashboardConstants.springResponse, dampingFraction: DashboardConstants.springDamping)) {
-            if sheetState == .peek {
+            if sheetState == .expanded {
                 sheetState = .medium
             }
         }
         
-        // Announce selection for accessibility
-        let announcement = "Selected \(annotation.name)"
-        UIAccessibility.post(notification: .announcement, argument: announcement)
-        
-        // Provide haptic feedback
+        // Provide haptic feedback for successful tap
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.impactOccurred()
         
-        // TODO: Could trigger additional actions like:
-        // - Updating region to center on facility
-        // - Loading detailed facility information
-        // - Starting navigation
+        // Announce for accessibility
+        let announcement = "Map centered on \(facility.name) with building-level precision"
+        UIAccessibility.post(notification: .announcement, argument: announcement)
+        
+        print("✅ Building-level map centering animation started for \(facility.name)")
     }
-    */
     
     // MARK: - Map Annotations
     private var mapAnnotations: [FacilityMapAnnotation] {
@@ -707,53 +762,52 @@ struct DashboardView: View {
     */
     
     // MARK: - 3D Mapbox Annotations
-    /// Convert facility data to custom map annotations with wait times and priorities
+    /// Convert facility data to custom map annotations with real coordinates and wait times
     private var mapboxAnnotations: [CustomMapAnnotation] {
-        // Convert current facility data to proper Facility models for 3D conversion
-        let facilities = facilityData.enumerated().map { index, dashboardFacility -> Facility in
-            // Use different coordinates for each facility to spread them around St. Louis
-            let baseLatitude = 38.6270
-            let baseLongitude = -90.1994
-            let latOffset = (Double(index) - 2.0) * 0.02 // Spread facilities around
-            let lonOffset = (Double(index % 3) - 1.0) * 0.03
-            
-            return Facility(
-                id: dashboardFacility.id,
-                name: dashboardFacility.name,
-                address: "Address", // TODO: Add actual address data
-                city: "St. Louis",
-                state: "MO", 
-                zipCode: "63110",
-                phone: "555-0123",
-                facilityType: dashboardFacility.type == "ER" ? .emergencyDepartment : .urgentCare,
-                coordinate: CLLocationCoordinate2D(
-                    latitude: baseLatitude + latOffset,
-                    longitude: baseLongitude + lonOffset
-                )
-            )
+        // Use real facilities from FacilityData with authentic coordinates
+        let realFacilities = facilityData.compactMap { dashboardFacility -> Facility? in
+            // Find the corresponding real facility data with authentic coordinates
+            guard let realFacility = FacilityData.allFacilities.first(where: { $0.id == dashboardFacility.id }) else {
+                print("⚠️ Could not find real facility data for \(dashboardFacility.name)")
+                return nil
+            }
+            return realFacility
         }
         
-        // Create wait times dictionary
+        // Create wait times dictionary from current dashboard data
         let waitTimes: [String: WaitTime] = Dictionary(uniqueKeysWithValues: 
             facilityData.compactMap { facility -> (String, WaitTime)? in
-                guard let waitMinutes = Int(facility.waitTime) else { return nil }
+                let waitMinutes: Int
+                if let minutes = Int(facility.waitTime) {
+                    waitMinutes = minutes
+                } else {
+                    // Handle N/A or other non-numeric wait times
+                    waitMinutes = 0
+                }
+                
                 let waitTime = WaitTime(
                     facilityId: facility.id,
                     waitMinutes: waitMinutes,
-                    patientsInLine: 0, // Default value
+                    patientsInLine: 0, // Default value - will be updated from real API data
                     lastUpdated: Date(),
-                    nextAvailableSlot: 0, // Default value
-                    status: .open, // Default to open status
-                    waitTimeRange: nil
+                    nextAvailableSlot: waitMinutes, // Use wait time as next available slot fallback
+                    status: facility.isOpen ? .open : .closed,
+                    waitTimeRange: facility.waitTime == "N/A" ? nil : "\(waitMinutes)"
                 )
                 return (facility.id, waitTime)
             }
         )
         
+        print("🗺️ Creating Mapbox annotations for \(realFacilities.count) facilities with real coordinates")
+        for facility in realFacilities.prefix(3) {
+            print("   - \(facility.name): \(facility.coordinate.latitude), \(facility.coordinate.longitude)")
+        }
+        
         return dataConverter.convertToMapboxAnnotations(
-            facilities: facilities,
+            facilities: realFacilities,
             waitTimes: waitTimes,
-            userLocation: locationService.currentLocation
+            userLocation: locationService.currentLocation,
+            selectedFacilityId: selectedFacilityId
         )
     }
     
@@ -761,8 +815,11 @@ struct DashboardView: View {
     
     // MARK: - Medical Facility Data
     private var facilityData: [MedicalFacility] {
-        // Convert real facilities to MedicalFacility format with real wait times
-        let realFacilities = FacilityData.allFacilities.map { facility in
+        // Sort facilities by distance from user location first, then convert to MedicalFacility format
+        let sortedFacilities = locationService.sortFacilitiesByDistance(FacilityData.allFacilities)
+        
+        // Convert sorted facilities to MedicalFacility format with real wait times
+        let realFacilities = sortedFacilities.map { facility in
             MedicalFacility(
                 id: facility.id,
                 name: getTAUCDisplayName(for: facility),
@@ -940,6 +997,7 @@ struct FacilityCard: View {
     let facility: MedicalFacility
     let isFirstCard: Bool
     let sheetState: BottomSheetState
+    let onTap: () -> Void
     
     // Add navigation-related properties
     @StateObject private var simpleNavigationManager = SimpleNavigationManager.shared
@@ -1073,6 +1131,12 @@ struct FacilityCard: View {
         .frame(height: cardHeight)
         .clipped()
         .animation(.easeInOut(duration: 0.25), value: sheetState)
+        .onTapGesture {
+            onTap()
+        }
+        .accessibilityAction(named: "Center map on facility") {
+            onTap()
+        }
         .alert("Navigation Error", isPresented: $showingNavigationAlert) {
             Button("OK") { }
         } message: {
@@ -1125,25 +1189,32 @@ struct FacilityCard: View {
     
     /// Convert MedicalFacility to Facility model for navigation
     private func convertToFacilityModel() -> Facility {
-        // For now, we'll use the existing facility data structure
-        // In a real implementation, you'd retrieve the full facility data
-        let coordinate = CLLocationCoordinate2D(
-            latitude: 38.6270 + Double.random(in: -0.02...0.02), // Spread facilities around St. Louis
-            longitude: -90.1994 + Double.random(in: -0.03...0.03)
-        )
+        // Look up the real facility from FacilityData using the facility ID
+        guard let realFacility = FacilityData.allFacilities.first(where: { $0.id == facility.id }) else {
+            print("⚠️ Navigation: Could not find facility \(facility.id) in FacilityData, using fallback")
+            
+            // Fallback: Create a facility with available data from MedicalFacility
+            // This should only happen if there's a data inconsistency
+            return Facility(
+                id: facility.id,
+                name: facility.name,
+                address: "Unknown Address",
+                city: "St. Louis",
+                state: "MO",
+                zipCode: "63110",
+                phone: "555-0123",
+                facilityType: facility.type == "ER" ? .emergencyDepartment : .urgentCare,
+                coordinate: CLLocationCoordinate2D(latitude: 38.6270, longitude: -90.1994), // St. Louis fallback
+                operatingHours: facility.type == "ER" ? OperatingHours.emergency24x7 : OperatingHours.standardUrgentCare
+            )
+        }
         
-        return Facility(
-            id: facility.id,
-            name: facility.name,
-            address: "Address", // TODO: Add actual address data
-            city: "St. Louis",
-            state: "MO",
-            zipCode: "63110",
-            phone: "555-0123",
-            facilityType: facility.type == "ER" ? .emergencyDepartment : .urgentCare,
-            coordinate: coordinate,
-            operatingHours: facility.type == "ER" ? OperatingHours.emergency24x7 : OperatingHours.standardUrgentCare
-        )
+        print("✅ Navigation: Found real facility data for \(realFacility.name)")
+        print("   📍 Address: \(realFacility.address), \(realFacility.city), \(realFacility.state) \(realFacility.zipCode)")
+        print("   🗺️ Coordinates: \(realFacility.coordinate.latitude), \(realFacility.coordinate.longitude)")
+        
+        // Return the real facility with all authentic data
+        return realFacility
     }
     
     

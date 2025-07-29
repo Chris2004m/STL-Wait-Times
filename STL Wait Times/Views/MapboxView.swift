@@ -457,9 +457,20 @@ struct MapboxView: UIViewRepresentable, Equatable {
     
     /// Add medical facility annotations to the map
     private func addMedicalFacilityAnnotations(mapView: MapView) {
-        // Create GeoJSON features for medical facilities
+        // Create GeoJSON features for medical facilities with color properties
         let features = annotations.map { annotation in
-            Feature(geometry: Point(annotation.coordinate))
+            var feature = Feature(geometry: Point(annotation.coordinate))
+            
+            // Add properties for styling
+            feature.properties = [
+                "id": .string(annotation.id),
+                "title": .string(annotation.title ?? "Medical Facility"),
+                "subtitle": .string(annotation.subtitle ?? ""),
+                "is_selected": .boolean(annotation.color == .systemPurple),
+                "color_type": .string(getColorType(for: annotation.color))
+            ]
+            
+            return feature
         }
         
         let featureCollection = FeatureCollection(features: features)
@@ -471,19 +482,106 @@ struct MapboxView: UIViewRepresentable, Equatable {
         do {
             try mapView.mapboxMap.addSource(geoJSONSource)
             
-            // Create symbol layer for medical facilities
-            var symbolLayer = SymbolLayer(id: "medical-facilities-layer", source: "medical-facilities")
-            symbolLayer.iconImage = .constant(.name("hospital"))
-            symbolLayer.iconSize = .constant(1.5)
-            symbolLayer.iconAnchor = .constant(.bottom)
-            symbolLayer.slot = .middle // Place in middle slot for proper 3D layering
+            // Create circle layer for medical facilities (more precise than icons)
+            var circleLayer = CircleLayer(id: "medical-facilities-layer", source: "medical-facilities")
+            
+            // Use dynamic circle radius based on selection state
+            circleLayer.circleRadius = .expression(
+                Exp(.switchCase) {
+                    Exp(.get) { "is_selected" }
+                    16.0  // Larger radius for selected facilities
+                    12.0  // Standard radius for unselected facilities
+                }
+            )
+            
+            // Use dynamic circle color based on selection state and wait time
+            circleLayer.circleColor = .expression(
+                Exp(.switchCase) {
+                    Exp(.get) { "is_selected" }
+                    Exp(.rgb) { 175; 82; 222 }  // Purple for selected facilities
+                    Exp(.switchCase) {
+                        Exp(.eq) { Exp(.get) { "color_type" }; "green" }
+                        Exp(.rgb) { 52; 199; 89 }  // System green
+                        Exp(.switchCase) {
+                            Exp(.eq) { Exp(.get) { "color_type" }; "yellow" }
+                            Exp(.rgb) { 255; 214; 10 }  // System yellow
+                            Exp(.switchCase) {
+                                Exp(.eq) { Exp(.get) { "color_type" }; "orange" }
+                                Exp(.rgb) { 255; 149; 0 }  // System orange
+                                Exp(.switchCase) {
+                                    Exp(.eq) { Exp(.get) { "color_type" }; "red" }
+                                    Exp(.rgb) { 255; 59; 48 }  // System red
+                                    Exp(.rgb) { 0; 122; 255 }  // System blue (default)
+                                }
+                            }
+                        }
+                    }
+                }
+            )
+            
+            // Add stroke for better visibility
+            circleLayer.circleStrokeColor = .constant(StyleColor(.white))
+            circleLayer.circleStrokeWidth = .expression(
+                Exp(.switchCase) {
+                    Exp(.get) { "is_selected" }
+                    3.0  // Thicker stroke for selected facilities
+                    2.0  // Standard stroke for unselected facilities
+                }
+            )
+            
+            // Add subtle shadow for depth
+            circleLayer.circleOpacity = .constant(0.9)
+            circleLayer.slot = .middle // Place in middle slot for proper 3D layering
+            
+            try mapView.mapboxMap.addLayer(circleLayer)
+            
+            // Add text labels for facility names (optional - only for selected)
+            var symbolLayer = SymbolLayer(id: "medical-facilities-labels", source: "medical-facilities")
+            symbolLayer.textField = .expression(
+                Exp(.switchCase) {
+                    Exp(.get) { "is_selected" }
+                    Exp(.get) { "title" }
+                    ""  // No text for unselected facilities to avoid clutter
+                }
+            )
+            symbolLayer.textSize = .constant(12)
+            symbolLayer.textColor = .constant(StyleColor(.white))
+            symbolLayer.textHaloColor = .constant(StyleColor(.black))
+            symbolLayer.textHaloWidth = .constant(1.0)
+            symbolLayer.textOffset = .constant([0, -2.5]) // Position above the circle
+            symbolLayer.textAnchor = .constant(.bottom)
+            symbolLayer.slot = .middle
             
             try mapView.mapboxMap.addLayer(symbolLayer)
             
-            // Facility tap handling is managed by the general tap gesture
+            print("✅ Added \\(annotations.count) facility markers with distinctive colors")
+            
+            // Log selected facilities for debugging
+            let selectedCount = annotations.filter { $0.color == .systemPurple }.count
+            if selectedCount > 0 {
+                print("🟣 \\(selectedCount) facilities highlighted with purple markers")
+            }
             
         } catch {
-            print("Error adding medical facility annotations: \(error)")
+            print("❌ Error adding medical facility annotations: \\(error)")
+        }
+    }
+    
+    /// Get color type string for Mapbox expressions
+    private func getColorType(for color: UIColor) -> String {
+        switch color {
+        case .systemGreen:
+            return "green"
+        case .systemYellow:
+            return "yellow"
+        case .systemOrange:
+            return "orange"
+        case .systemRed:
+            return "red"
+        case .systemPurple:
+            return "purple"
+        default:
+            return "blue"
         }
     }
     

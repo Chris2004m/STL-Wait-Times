@@ -59,12 +59,14 @@ class MapboxDataConverter {
     ///   - waitTimes: Current wait times dictionary
     ///   - userLocation: User's current location for distance calculation
     ///   - includeClosedFacilities: Whether to include closed facilities
+    ///   - selectedFacilityId: ID of the selected facility for highlighting
     /// - Returns: Array of custom map annotations
     func convertToMapboxAnnotations(
         facilities: [Facility],
         waitTimes: [String: WaitTime] = [:],
         userLocation: CLLocation? = nil,
-        includeClosedFacilities: Bool = true
+        includeClosedFacilities: Bool = true,
+        selectedFacilityId: String? = nil
     ) -> [CustomMapAnnotation] {
         
         return facilities.compactMap { facility in
@@ -78,10 +80,12 @@ class MapboxDataConverter {
             let waitMinutes = waitTime?.waitMinutes
             let _ = waitTime?.changeString // Unused for now
             
-            // Determine color based on wait time and facility type
+            // Determine color based on wait time, facility type, and selection state
+            let isSelected = facility.id == selectedFacilityId
             let color = determineAnnotationColor(
                 for: facility,
-                waitTime: waitMinutes
+                waitTime: waitMinutes,
+                isSelected: isSelected
             )
             
             // Create title and subtitle
@@ -115,7 +119,7 @@ class MapboxDataConverter {
             CustomMapAnnotation(
                 id: facility.id,
                 coordinate: facility.coordinate,
-                color: determineAnnotationColor(for: facility, waitTime: nil),
+                color: determineAnnotationColor(for: facility, waitTime: nil, isSelected: false),
                 title: facility.name,
                 subtitle: facility.facilityType.rawValue
             )
@@ -124,9 +128,14 @@ class MapboxDataConverter {
     
     // MARK: - Private Helper Methods
     
-    /// Determine annotation color based on facility type and wait time
-    private func determineAnnotationColor(for facility: Facility, waitTime: Int?) -> UIColor {
-        // Priority: wait time > facility type > default
+    /// Determine annotation color based on facility type, wait time, and selection state
+    private func determineAnnotationColor(for facility: Facility, waitTime: Int?, isSelected: Bool = false) -> UIColor {
+        // Priority: selection > wait time > facility type > default
+        
+        // Highlight selected facility with distinctive color
+        if isSelected {
+            return .systemPurple // Distinctive purple color for selected facility
+        }
         
         if let wait = waitTime {
             switch wait {

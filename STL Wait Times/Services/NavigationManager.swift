@@ -212,7 +212,7 @@ extension NavigationManager: @preconcurrency NavigationViewControllerDelegate {
     func navigationViewController(
         _ navigationViewController: NavigationViewController,
         didArriveAt waypoint: Waypoint
-    ) -> Bool {
+    ) {
         // Handle arrival at destination
         // Announce arrival
         let announcement = "You have arrived at your destination"
@@ -226,8 +226,6 @@ extension NavigationManager: @preconcurrency NavigationViewControllerDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             self.stopNavigation()
         }
-        
-        return true
     }
     
     func navigationViewControllerDidDismiss(
