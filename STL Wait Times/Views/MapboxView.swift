@@ -82,6 +82,8 @@ struct MapboxView: UIViewRepresentable, Equatable {
     
     class Coordinator: NSObject {
         var lightTimer: Timer? = nil
+        // Track the last applied style to avoid unnecessary reloads
+        var lastAppliedStyle: String? = nil
         
         /// Schedule a timer that refreshes the light preset every 30 minutes.
         func scheduleLightRefresh(for mapView: MapView) {
@@ -133,11 +135,12 @@ struct MapboxView: UIViewRepresentable, Equatable {
             parent.onCameraAnimationStart?()
             
             // Create target camera options
+            let adjustedPitch: Double = parent.isSatelliteStyle(parent.mapStyle) ? 0.0 : pitch
             let targetCamera = CameraOptions(
                 center: coordinate,
                 zoom: zoom,
                 bearing: bearing,
-                pitch: pitch
+                pitch: adjustedPitch
             )
             
             // Start the animation with completion handler
@@ -151,6 +154,22 @@ struct MapboxView: UIViewRepresentable, Equatable {
             let announcement = "Flying to new location"
             UIAccessibility.post(notification: .announcement, argument: announcement)
         }
+    }
+
+    /// Increase perceived sharpness of satellite raster layers by adjusting style properties
+    private func sharpenSatelliteRasterLayers(mapView: MapView) {
+        let identifiers = mapView.mapboxMap.style.allLayerIdentifiers
+        let rasterIds = identifiers.filter { $0.type == .raster }.map { $0.id }
+        guard !rasterIds.isEmpty else { return }
+        
+        for id in rasterIds {
+            // Prefer nearest resampling to avoid blur at high zoom; remove fade cross-fade blur
+            try? mapView.mapboxMap.setLayerProperty(for: id, property: "raster-resampling", value: "nearest")
+            try? mapView.mapboxMap.setLayerProperty(for: id, property: "raster-fade-duration", value: 0)
+            // Slight contrast boost to help edges pop without over-saturating
+            try? mapView.mapboxMap.setLayerProperty(for: id, property: "raster-contrast", value: 0.05)
+        }
+        print("🖼️ Sharpened \(rasterIds.count) raster layer(s) for satellite style")
     }
     
     // MARK: - Properties
@@ -211,11 +230,14 @@ struct MapboxView: UIViewRepresentable, Equatable {
         // Check if lights setting changed
         let lightsChanged = lhs.lightsEnabled != rhs.lightsEnabled
         
+        // Check if style changed
+        let styleChanged = lhs.mapStyle != rhs.mapStyle
+        
         // Check if navigation route changed
         let routeChanged = (lhs.navigationRoute?.description != rhs.navigationRoute?.description)
         
         // Return false if anything changed (this will trigger updateUIView)
-        return !centerChanged && !spanChanged && lhs.annotations.count == rhs.annotations.count && !triggerChanged && !lightsChanged && !routeChanged
+        return !centerChanged && !spanChanged && lhs.annotations.count == rhs.annotations.count && !triggerChanged && !lightsChanged && !styleChanged && !routeChanged
     }
     
     // MARK: - UIViewRepresentable Implementation
@@ -261,6 +283,14 @@ struct MapboxView: UIViewRepresentable, Equatable {
         print("🔍 Target region center: \(targetCenter.latitude), \(targetCenter.longitude)")
         print("🔍 Current lights: \(lightsEnabled)")
         print("🔍 Recenter trigger: \(recenterTrigger?.uuidString ?? "nil")")
+        print("🔍 Requested map style: \(mapStyle)")
+        print("🔍 Last applied style: \(context.coordinator.lastAppliedStyle ?? "none")")
+        
+        // If the requested style differs from the currently applied style, reconfigure the map style
+        if context.coordinator.lastAppliedStyle != mapStyle {
+            print("🎨 Style change detected → applying new style: \(mapStyle)")
+            configureMapStyle(mapView: mapView, coordinator: context.coordinator)
+        }
         
         let centerLatDiff = abs(targetCenter.latitude - currentCenter.latitude)
         let centerLonDiff = abs(targetCenter.longitude - currentCenter.longitude)
@@ -285,8 +315,10 @@ struct MapboxView: UIViewRepresentable, Equatable {
         // Update annotations
         updateAnnotations(mapView: mapView)
         
-        // Always update 3D lights (was missing from original - this fixes lights toggle!)
-        configure3DLights(for: mapView)
+        // Update 3D lights only for non-satellite styles
+        if !isSatelliteStyle(mapStyle) {
+            configure3DLights(for: mapView)
+        }
         
         // Update navigation route line
         updateNavigationRoute(mapView: mapView)
@@ -323,56 +355,140 @@ struct MapboxView: UIViewRepresentable, Equatable {
         // Cancel any existing timer each time we rebuild style
         coordinator.lightTimer?.invalidate()
         coordinator.lightTimer = nil
-        // Set Standard Core style
-        mapView.mapboxMap.styleURI = .standard
+        
+        // Apply the requested style (standard or satellite streets)
+        mapView.mapboxMap.styleURI = styleURI(for: mapStyle)
+        coordinator.lastAppliedStyle = mapStyle
+        
+        // Enforce style-specific interaction/camera constraints immediately
+        applyInteractionAndCameraConstraints(mapView: mapView)
         
         // Configure Standard style properties for enhanced 3D experience
         _ = mapView.mapboxMap.onStyleLoaded.observeNext { _ in
             do {
-                // Enable 3D buildings and objects
-                try mapView.mapboxMap.setStyleImportConfigProperty(
+                // Attempt to enable 3D buildings/objects when supported (may be ignored on some styles)
+                try? mapView.mapboxMap.setStyleImportConfigProperty(
                     for: "basemap",
                     config: "show3dObjects",
                     value: true
                 )
                 
-                // Configure 3D lighting using Mapbox's experimental style content API
-                self.configure3DLights(for: mapView)
-                
-                if self.lightsEnabled {
-                    // Schedule timer to refresh lights every 30 minutes for dynamic lighting
-                    coordinator.scheduleLightRefresh(for: mapView)
+                // Configure 3D lighting only for non-satellite styles
+                if !self.isSatelliteStyle(self.mapStyle) {
+                    self.configure3DLights(for: mapView)
+                    
+                    if self.lightsEnabled {
+                        // Schedule timer to refresh lights every 30 minutes for dynamic lighting
+                        coordinator.scheduleLightRefresh(for: mapView)
+                    }
                 }
                 
                 // Configure label visibility for medical facilities
-                try mapView.mapboxMap.setStyleImportConfigProperty(
+                try? mapView.mapboxMap.setStyleImportConfigProperty(
                     for: "basemap",
                     config: "showPointOfInterestLabels",
                     value: true
                 )
                 
-                try mapView.mapboxMap.setStyleImportConfigProperty(
+                try? mapView.mapboxMap.setStyleImportConfigProperty(
                     for: "basemap",
                     config: "showPlaceLabels",
                     value: true
                 )
                 
-                try mapView.mapboxMap.setStyleImportConfigProperty(
+                try? mapView.mapboxMap.setStyleImportConfigProperty(
                     for: "basemap",
                     config: "showRoadLabels",
                     value: true
                 )
                 
-                try mapView.mapboxMap.setStyleImportConfigProperty(
+                try? mapView.mapboxMap.setStyleImportConfigProperty(
                     for: "basemap",
                     config: "showTransitLabels",
                     value: false
                 )
                 
                 print("✅ Mapbox Standard Core style configured successfully")
+                
+                // Re-add runtime sources and layers (style reload clears them)
+                self.updateAnnotations(mapView: mapView)
+                self.updateNavigationRoute(mapView: mapView)
+
+                // Re-apply constraints after style fully loads (ensures bounds stick)
+                self.applyInteractionAndCameraConstraints(mapView: mapView)
+
+                // If satellite style, sharpen raster imagery to reduce perceived blur
+                if self.isSatelliteStyle(self.mapStyle) {
+                    self.sharpenSatelliteRasterLayers(mapView: mapView)
+                }
             } catch {
                 print("❌ Error configuring Mapbox Standard style properties: \(error)")
             }
+        }
+    }
+
+    /// Map style resolver
+    private func styleURI(for styleName: String) -> StyleURI {
+        let key = styleName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch key {
+        case "satellite", "satellite-streets", "hybrid", "satellite_streets":
+            return .satelliteStreets
+        default:
+            return .standard
+        }
+    }
+
+    /// Determine if a style string corresponds to a satellite/hybrid view
+    private func isSatelliteStyle(_ styleName: String) -> Bool {
+        let key = styleName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch key {
+        case "satellite", "satellite-streets", "hybrid", "satellite_streets":
+            return true
+        default:
+            return false
+        }
+    }
+    
+    /// Default pitch for the given style: 0 for satellite, 45 for standard
+    private func defaultPitch(for styleName: String) -> Double {
+        return isSatelliteStyle(styleName) ? 0.0 : 45.0
+    }
+    
+    /// Apply gesture options and camera bounds tailored to the current style
+    private func applyInteractionAndCameraConstraints(mapView: MapView) {
+        let satellite = isSatelliteStyle(mapStyle)
+        
+        // Disable pitch gestures for satellite to keep top-down view
+        mapView.gestures.options.pitchEnabled = !satellite
+        
+        if satellite {
+            // Lock pitch to 0 and cap max zoom to avoid blurry upscaling
+            let maxZoom: Double = 20.0
+            try? mapView.mapboxMap.setCameraBounds(with: CameraBoundsOptions(
+                bounds: nil,
+                maxZoom: maxZoom,
+                minZoom: 0.0,
+                maxPitch: 0.0,
+                minPitch: 0.0
+            ))
+            
+            let cam = mapView.mapboxMap.cameraState
+            let clampedZoom = min(cam.zoom, maxZoom)
+            mapView.mapboxMap.setCamera(to: CameraOptions(
+                center: cam.center,
+                zoom: clampedZoom,
+                bearing: cam.bearing,
+                pitch: 0.0
+            ))
+        } else {
+            // Restore broader pitch and zoom range for standard style
+            try? mapView.mapboxMap.setCameraBounds(with: CameraBoundsOptions(
+                bounds: nil,
+                maxZoom: 22.0,
+                minZoom: 0.0,
+                maxPitch: 75.0,
+                minPitch: 0.0
+            ))
         }
     }
     
@@ -382,7 +498,7 @@ struct MapboxView: UIViewRepresentable, Equatable {
             center: coordinateRegion.center,
             zoom: getZoomLevel(from: coordinateRegion.span),
             bearing: 0,
-            pitch: 45 // Add pitch for 3D view
+            pitch: defaultPitch(for: mapStyle)
         )
         
         mapView.mapboxMap.setCamera(to: camera)
@@ -393,6 +509,9 @@ struct MapboxView: UIViewRepresentable, Equatable {
         // Add tap gesture recognizer for map taps
         let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
         mapView.addGestureRecognizer(tapGesture)
+
+        // Apply initial gesture options based on current style
+        applyInteractionAndCameraConstraints(mapView: mapView)
     }
     
     /// Set up accessibility features
@@ -428,7 +547,7 @@ struct MapboxView: UIViewRepresentable, Equatable {
                 center: coordinateRegion.center,
                 zoom: zoomLevel,
                 bearing: mapView.mapboxMap.cameraState.bearing,
-                pitch: mapView.mapboxMap.cameraState.pitch
+                pitch: defaultPitch(for: mapStyle)
             )
             
             // Use smooth animation for location updates

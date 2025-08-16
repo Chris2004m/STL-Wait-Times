@@ -82,6 +82,9 @@ struct DashboardView: View {
     // MARK: - Environment
     @Environment(\.colorScheme) private var colorScheme
     
+    // MARK: - User Preferences
+    @AppStorage("preferred_map_style") private var preferredMapStyle: String = "standard"
+    
     
     var body: some View {
         print("📱 DashboardView: Creating view body")
@@ -91,7 +94,7 @@ struct DashboardView: View {
             MapboxView(
                 coordinateRegion: $region,
                 annotations: mapboxAnnotations,
-                mapStyle: "standard",
+                mapStyle: preferredMapStyle,
                 lightsEnabled: lightsEnabled,
                 onMapTap: { coordinate in
                     handleMapTap(at: coordinate)
@@ -108,6 +111,9 @@ struct DashboardView: View {
             
             // Lights Toggle Button
             lightsToggleButton
+            
+            // Map Style Toggle Button
+            mapStyleToggleButton
             
             // Simple Reliable Bottom Sheet
             SimpleBottomSheetView(
@@ -169,6 +175,39 @@ struct DashboardView: View {
             Spacer()
         }
         .padding(.top, compassButtonTopOffset + compassButtonSize + buttonSpacing + compassButtonSize + buttonSpacing) // Position below location button with proper spacing
+    }
+    
+    @ViewBuilder
+    private var mapStyleToggleButton: some View {
+        VStack {
+            HStack {
+                Spacer()
+                
+                // Map style toggle button (Standard/Satellite)
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        preferredMapStyle = (preferredMapStyle.lowercased() == "standard") ? "satellite" : "standard"
+                    }
+                    // Haptic feedback
+                    let selectionFeedback = UISelectionFeedbackGenerator()
+                    selectionFeedback.selectionChanged()
+                }) {
+                    Image(systemName: preferredMapStyle.lowercased() == "standard" ? "map" : "map.fill")
+                        .font(.system(size: iconSize, weight: .medium))
+                        .foregroundColor(iconColor)
+                }
+                .frame(width: compassButtonSize, height: compassButtonSize)
+                .background(compassButtonBackground)
+                .clipShape(Circle())
+                .shadow(color: compassShadowColor, radius: compassShadowRadius, x: compassShadowOffset.width, y: compassShadowOffset.height)
+                .accessibility(label: Text(preferredMapStyle.lowercased() == "standard" ? "Switch to Satellite map" : "Switch to Standard map"))
+                .accessibility(hint: Text("Toggles between Standard and Satellite Streets map styles"))
+                .padding(.trailing, compassButtonTrailingOffset)
+            }
+            
+            Spacer()
+        }
+        .padding(.top, compassButtonTopOffset + compassButtonSize + buttonSpacing + compassButtonSize + buttonSpacing + compassButtonSize + buttonSpacing) // Stack below lights button
     }
     
     private var locationButton: some View {
