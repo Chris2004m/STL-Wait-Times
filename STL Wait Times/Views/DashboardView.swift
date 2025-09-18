@@ -385,19 +385,27 @@ struct DashboardView: View {
                             let selectionFeedback = UISelectionFeedbackGenerator()
                             selectionFeedback.selectionChanged()
                         }) {
-                            HStack(spacing: 4) {
+                            HStack(spacing: 6) {
                                 Image(systemName: showPatientsInLine ? "person.2.fill" : "clock.fill")
-                                    .font(.system(size: 11, weight: .medium))
+                                    .font(.system(size: 12, weight: .semibold))
                                 Text(showPatientsInLine ? "Patients" : "Time")
-                                    .font(.system(size: 11, weight: .medium))
+                                    .font(.system(size: 12, weight: .semibold))
                                     .lineLimit(1)
                             }
                             .foregroundColor(.white)
-                            .padding(.horizontal, hasNAFacilities ? 8 : 12)
-                            .padding(.vertical, 6)
-                            .background(Color.blue)
-                            .cornerRadius(8)
+                            .padding(.horizontal, hasNAFacilities ? 14 : 16)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .fill(timeToggleGradient)
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                                    )
+                            )
+                            .shadow(color: timeToggleShadow, radius: 10, x: 0, y: 4)
                         }
+                        .buttonStyle(.plain)
                         .accessibility(label: Text(showPatientsInLine ? "Switch to wait time display" : "Switch to patients in line display"))
                         .accessibility(hint: Text("Toggles between showing patient count and wait time for Total Access facilities"))
                     }
@@ -498,6 +506,24 @@ struct DashboardView: View {
         }
     }
     
+    private var timeToggleGradient: LinearGradient {
+        if showPatientsInLine {
+            return LinearGradient(colors: [
+                Color(red: 0.09, green: 0.74, blue: 0.67),
+                Color(red: 0.06, green: 0.86, blue: 0.78)
+            ], startPoint: .topLeading, endPoint: .bottomTrailing)
+        } else {
+            return LinearGradient(colors: [
+                Color(red: 0.23, green: 0.45, blue: 0.99),
+                Color(red: 0.38, green: 0.66, blue: 1.0)
+            ], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+    }
+
+    private var timeToggleShadow: Color {
+        Color.black.opacity(0.14)
+    }
+
     /// Refresh only facilities that are currently showing N/A
     private func refreshNAFacilities() {
         let facilitiesToRefresh = naFacilities
@@ -1079,57 +1105,68 @@ struct FacilityCard: View {
                 Spacer()
                 
                 // Right: Status and Navigation
-                VStack(alignment: .trailing, spacing: 8) {
-                    // Status with refresh button
-                    HStack(spacing: 8) {
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text("Status")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.secondary)
-                                .textCase(.uppercase)
-                                .kerning(0.2)
-                            
-                            Text(facility.status)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(facility.isOpen ? .green : .red)
-                        }
+                VStack(alignment: .trailing, spacing: 12) {
+                    HStack(spacing: 10) {
+                        statusBadge
                         
-                        // Refresh button (show for all facilities)
                         Button(action: {
                             print("🔄 Dashboard refresh tapped for \(facility.name)")
                             let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
                             impactFeedback.impactOccurred()
                             refreshFacility(facility)
                         }) {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.blue)
-                                .padding(6)
-                                .background(Circle().fill(.blue.opacity(0.1)))
+                            ZStack {
+                                Circle()
+                                    .fill(refreshButtonGradient)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.white.opacity(0.22), lineWidth: 1)
+                                    )
+                                    .shadow(color: refreshButtonShadow, radius: 8, x: 0, y: 3)
+                                
+                                if isFacilityRefreshing(facility) {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .scaleEffect(0.55 as CGFloat)
+                                } else {
+                                    Image(systemName: "arrow.clockwise")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(.white)
+                                }
+                            }
+                            .frame(width: 34, height: 34)
                         }
-                        .buttonStyle(PlainButtonStyle())
+                        .buttonStyle(.plain)
                         .disabled(isFacilityRefreshing(facility))
+                        .opacity(isFacilityRefreshing(facility) ? 0.55 : 1)
                     }
                     
-                    // Navigate Button
                     Button(action: handleNavigationTap) {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 8) {
                             Image(systemName: navigationButtonIcon)
-                                .font(.system(size: 12, weight: .medium))
+                                .font(.system(size: 13, weight: .semibold))
                             Text("Navigate")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.system(size: 12, weight: .semibold))
                         }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(navigationButtonColor)
-                        .cornerRadius(8)
+                        .foregroundColor(navigationForegroundColor)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 11)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(navigationButtonGradient)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                                )
+                        )
+                        .shadow(color: navigationButtonShadow, radius: 12, x: 0, y: 5)
                     }
+                    .buttonStyle(.plain)
                     .disabled(!canNavigate)
-                    .opacity(canNavigate ? 1.0 : 0.6)
                     .accessibilityLabel("Navigate to \(facility.name)")
                     .accessibilityHint(canNavigate ? "Starts turn-by-turn navigation to this medical facility" : "Navigation not available. Check location permissions.")
                 }
+                .frame(maxHeight: .infinity, alignment: .topTrailing)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, cardPadding)
@@ -1254,15 +1291,91 @@ struct FacilityCard: View {
         }
     }
     
-    /// Navigation button color based on state
-    private var navigationButtonColor: Color {
-        if isNavigating && navigationFacilityId == facility.id {
-            return .green
-        } else if !canNavigate {
-            return .gray
-        } else {
-            return .blue
+    private var statusBadge: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(statusIndicatorColor)
+                .frame(width: 7, height: 7)
+                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+            Text(facility.status)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.white.opacity(0.92))
         }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 12)
+        .frame(height: 32)
+        .background(
+            Capsule()
+                .fill(statusBadgeGradient)
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
+        )
+        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+    }
+    
+    private var statusBadgeGradient: LinearGradient {
+        if facility.isOpen {
+            return LinearGradient(colors: [
+                Color(red: 0.16, green: 0.75, blue: 0.58),
+                Color(red: 0.05, green: 0.59, blue: 0.46)
+            ], startPoint: .topLeading, endPoint: .bottomTrailing)
+        } else {
+            return LinearGradient(colors: [
+                Color(red: 0.86, green: 0.28, blue: 0.34),
+                Color(red: 0.72, green: 0.19, blue: 0.28)
+            ], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+    }
+    
+    private var statusIndicatorColor: Color {
+        facility.isOpen ? Color.white.opacity(0.85) : Color.white.opacity(0.9)
+    }
+    
+    private var refreshButtonGradient: LinearGradient {
+        if isFacilityRefreshing(facility) {
+            return LinearGradient(colors: [
+                Color(red: 0.99, green: 0.55, blue: 0.32),
+                Color(red: 1.0, green: 0.72, blue: 0.4)
+            ], startPoint: .topLeading, endPoint: .bottomTrailing)
+        } else {
+            return LinearGradient(colors: [
+                Color(red: 0.2, green: 0.47, blue: 1.0),
+                Color(red: 0.32, green: 0.7, blue: 1.0)
+            ], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+    }
+    
+    private var refreshButtonShadow: Color {
+        isFacilityRefreshing(facility) ? Color.black.opacity(0.05) : Color.black.opacity(0.12)
+    }
+    
+    private var navigationButtonGradient: LinearGradient {
+        if isNavigating && navigationFacilityId == facility.id {
+            return LinearGradient(colors: [
+                Color(red: 0.1, green: 0.75, blue: 0.63),
+                Color(red: 0.05, green: 0.63, blue: 0.79)
+            ], startPoint: .topLeading, endPoint: .bottomTrailing)
+        } else if !canNavigate {
+            return LinearGradient(colors: [
+                Color(red: 0.65, green: 0.68, blue: 0.75),
+                Color(red: 0.56, green: 0.6, blue: 0.66)
+            ], startPoint: .topLeading, endPoint: .bottomTrailing)
+        } else {
+            return LinearGradient(colors: [
+                Color(red: 0.16, green: 0.46, blue: 0.97),
+                Color(red: 0.3, green: 0.7, blue: 1.0)
+            ], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+    }
+    
+    private var navigationButtonShadow: Color {
+        canNavigate ? Color.black.opacity(0.16) : Color.black.opacity(0.05)
+    }
+    
+    private var navigationForegroundColor: Color {
+        canNavigate ? Color.white : Color.white.opacity(0.75)
     }
     
     // MARK: - Color Logic
