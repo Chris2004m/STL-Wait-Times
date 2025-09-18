@@ -50,26 +50,40 @@ class BackgroundTaskService: ObservableObject {
         // Schedule the next refresh
         scheduleBackgroundRefresh()
         
-        // Set expiration handler
+        // Perform background refresh
+        var didCompleteTask = false
+        
         task.expirationHandler = {
-            print("⏰ BackgroundTaskService: Background task expired")
-            task.setTaskCompleted(success: false)
+            if !didCompleteTask {
+                print("⏰ BackgroundTaskService: Background task expired")
+                didCompleteTask = true
+                task.setTaskCompleted(success: false)
+            }
         }
         
-        // Perform background refresh
-        Task {
-            // Get Total Access facilities for refresh
-            let totalAccessFacilities = FacilityData.allFacilities.filter { 
-                $0.id.hasPrefix("total-access") || $0.apiEndpoint != nil 
+        let totalAccessFacilities = FacilityData.allFacilities.filter {
+            $0.id.hasPrefix("total-access") || $0.apiEndpoint != nil
+        }
+        
+        guard !totalAccessFacilities.isEmpty else {
+            print("❌ BackgroundTaskService: No facilities to refresh")
+            if !didCompleteTask {
+                didCompleteTask = true
+                task.setTaskCompleted(success: false)
             }
+            return
+        }
+        
+        WaitTimeService.shared.fetchAllWaitTimes(facilities: totalAccessFacilities) { result in
+            guard !didCompleteTask else { return }
+            didCompleteTask = true
             
-            if !totalAccessFacilities.isEmpty {
-                // Refresh wait times in background
-                WaitTimeService.shared.fetchAllWaitTimes(facilities: totalAccessFacilities)
+            switch result {
+            case .success:
                 print("✅ BackgroundTaskService: Background refresh completed")
                 task.setTaskCompleted(success: true)
-            } else {
-                print("❌ BackgroundTaskService: No facilities to refresh")
+            case .failure(let error):
+                print("❌ BackgroundTaskService: Refresh failed with error: \(error.localizedDescription)")
                 task.setTaskCompleted(success: false)
             }
         }

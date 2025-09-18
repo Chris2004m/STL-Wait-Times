@@ -215,7 +215,8 @@ extension Facility {
 extension Facility {
     /// Check if facility is open (placeholder implementation)
     var isOpen: Bool {
-        return true // TODO: Implement actual open/closed logic
+        // Delegate to the core availability logic on Facility
+        return isCurrentlyOpen
     }
 }
 

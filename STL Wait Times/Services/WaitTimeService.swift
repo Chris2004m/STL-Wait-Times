@@ -202,7 +202,7 @@ public class WaitTimeService: ObservableObject {
     }
     
     /// Fetches wait times for all Total Access facilities in batches with smart error handling
-    func fetchAllWaitTimes(facilities: [Facility]) {
+    func fetchAllWaitTimes(facilities: [Facility], completion: ((Result<Void, WaitTimeError>) -> Void)? = nil) {
         print("🔍 DEBUG: fetchAllWaitTimes called with \(facilities.count) facilities")
         for (index, facility) in facilities.enumerated() {
             print("   \(index + 1). \(facility.name) (\(facility.id))")
@@ -229,6 +229,7 @@ public class WaitTimeService: ObservableObject {
         
         guard !totalAccessFacilities.isEmpty else { 
             print("❌ No Total Access facilities found")
+            completion?(.failure(.noData))
             return 
         }
         
@@ -261,14 +262,16 @@ public class WaitTimeService: ObservableObject {
             .collect()
             .receive(on: DispatchQueue.main)
             .sink(
-                receiveCompletion: { [weak self] completion in
+                receiveCompletion: { [weak self] pipelineCompletion in
                     self?.isLoading = false
-                    switch completion {
+                    switch pipelineCompletion {
                     case .failure(let error):
                         self?.error = error
                         print("❌ Batch fetch completed with error: \(error.localizedDescription)")
+                        completion?(.failure(error))
                     case .finished:
                         print("✅ All batch fetches completed successfully")
+                        completion?(.success(()))
                     }
                 },
                 receiveValue: { [weak self] batchResults in
@@ -296,6 +299,14 @@ public class WaitTimeService: ObservableObject {
         // Prevent multiple concurrent refreshes of the same facility
         guard !refreshingFacilities.contains(facility.id) else {
             print("⚠️ Facility \(facility.name) is already being refreshed")
+            return
+        }
+        
+        if let apiEndpoint = facility.apiEndpoint, !shouldMakeApiCall(for: apiEndpoint) {
+            print("🚫 Manual refresh skipped for \(facility.name) due to circuit breaker or rate limiting")
+            DispatchQueue.main.async {
+                self.error = .rateLimited
+            }
             return
         }
         
@@ -422,7 +433,19 @@ public class WaitTimeService: ObservableObject {
             print("   🔗 API Endpoint: \(apiEndpoint)")
             print("   📊 API provides structured, reliable patient count data")
             
+            recordApiAttempt(for: apiEndpoint)
+            
             return fetchAPIFallback(for: facility)
+                .handleEvents(
+                    receiveOutput: { [weak self] _ in
+                        self?.recordApiSuccess(for: apiEndpoint)
+                    },
+                    receiveCompletion: { [weak self] completion in
+                        if case .failure = completion {
+                            self?.recordApiFailure(for: apiEndpoint)
+                        }
+                    }
+                )
                 .catch { error -> AnyPublisher<WaitTime?, WaitTimeError> in
                     print("⚠️ \(facility.name): API failed, falling back to web scraping...")
                     print("   ❌ API error: \(error.localizedDescription)")
@@ -1872,6 +1895,24 @@ public class WaitTimeService: ObservableObject {
             status: .open,
             waitTimeRange: nil
         )
+    }
+    
+    private func recordApiAttempt(for apiEndpoint: String) {
+        lastApiCall[apiEndpoint] = Date()
+    }
+    
+    private func recordApiSuccess(for apiEndpoint: String) {
+        var state = circuitBreakerState[apiEndpoint, default: CircuitBreakerState()]
+        state.recordSuccess()
+        circuitBreakerState[apiEndpoint] = state
+        lastApiCall[apiEndpoint] = Date()
+    }
+    
+    private func recordApiFailure(for apiEndpoint: String) {
+        var state = circuitBreakerState[apiEndpoint, default: CircuitBreakerState()]
+        state.recordFailure()
+        circuitBreakerState[apiEndpoint] = state
+        lastApiCall[apiEndpoint] = Date()
     }
     
     /// Helper method to extract minutes from time strings like "15 min" or "1 hour 30 min"

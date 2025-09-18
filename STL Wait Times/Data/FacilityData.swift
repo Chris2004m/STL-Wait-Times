@@ -1188,12 +1188,12 @@ struct FacilityData {
         // Stone's Corner Mercy-GoHealth location
         Facility(
             id: "mercy-gohealth-stones-corner",
-            name: "Stone's Corner",
-            address: "Stone's Corner Location",  // Address TBD - using placeholder
-            city: "Joplin",
+            name: "Mercy GoHealth - Stone's Corner",
+            address: "6055 N Main Street Rd",
+            city: "Webb City",
             state: "MO",
-            zipCode: "64804",  // Placeholder zipcode
-            phone: "(417) 000-0000",  // Placeholder phone
+            zipCode: "64870",
+            phone: "(417) 717-8846",
             facilityType: .urgentCare,
             coordinate: CLLocationCoordinate2D(latitude: 37.143563, longitude: -94.511307),
             cmsAverageWaitMinutes: nil,

@@ -98,10 +98,9 @@ class SimpleNavigationManager: ObservableObject {
         print("   📮 Full Address: \(fullAddress)")
         print("   📍 Coordinates: \(facility.coordinate.latitude), \(facility.coordinate.longitude)")
         
-        // Open in Maps app for navigation with driving directions
-        MKMapItem.openMaps(with: [mapItem], launchOptions: [
-            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving
-        ])
+        // Open in Maps app showing facility details page (not immediate navigation)
+        // This shows the detailed view with hours, reviews, and action buttons
+        MKMapItem.openMaps(with: [mapItem], launchOptions: [:])
         
         // Update state temporarily
         isNavigating = true
