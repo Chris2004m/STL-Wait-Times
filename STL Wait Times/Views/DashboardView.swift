@@ -47,6 +47,20 @@ private enum DashboardConstants {
     static let primaryBlue = Color.blue
     static let systemGray = Color(.systemGray2)
 }
+private enum ThemePalette {
+    static let midnightPrimary = Color(red: 0.25, green: 0.21, blue: 0.54)
+    static let midnightSecondary = Color(red: 0.16, green: 0.13, blue: 0.38)
+    static let midnightHighlight = Color(red: 0.44, green: 0.33, blue: 0.82)
+    static let midnightAccent = Color(red: 0.58, green: 0.46, blue: 0.95)
+    static let midnightGlow = Color.black.opacity(0.18)
+    static let successStart = Color(red: 0.24, green: 0.78, blue: 0.69)
+    static let successEnd = Color(red: 0.17, green: 0.62, blue: 0.55)
+    static let dangerStart = Color(red: 0.83, green: 0.29, blue: 0.34)
+    static let dangerEnd = Color(red: 0.68, green: 0.19, blue: 0.27)
+    static let disabledStart = Color(red: 0.55, green: 0.57, blue: 0.64)
+    static let disabledEnd = Color(red: 0.47, green: 0.49, blue: 0.56)
+}
+
 
 struct DashboardView: View {
     
@@ -351,8 +365,8 @@ struct DashboardView: View {
                         Button(action: {
                             refreshNAFacilities()
                         }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: isGlobalRefreshing ? "arrow.clockwise" : "arrow.clockwise")
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.clockwise")
                                     .font(.system(size: 11, weight: .medium))
                                     .rotationEffect(.degrees(isGlobalRefreshing ? 360 : 0))
                                     .animation(isGlobalRefreshing ? .linear(duration: 1.0).repeatForever(autoreverses: false) : .default, value: isGlobalRefreshing)
@@ -361,11 +375,19 @@ struct DashboardView: View {
                                     .lineLimit(1)
                             }
                             .foregroundColor(.white)
-                            .padding(.horizontal, hasClockwiseMDFacilities ? 8 : 12)
-                            .padding(.vertical, 6)
-                            .background(isGlobalRefreshing ? Color.orange : Color.green)
-                            .cornerRadius(8)
+                            .padding(.horizontal, hasClockwiseMDFacilities ? 14 : 16)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .fill(globalRefreshGradient)
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                                    )
+                            )
+                            .shadow(color: globalRefreshShadow, radius: 8, x: 0, y: 3)
                         }
+                        .buttonStyle(.plain)
                         .disabled(isGlobalRefreshing)
                         .accessibility(label: Text("Refresh facilities showing N/A"))
                         .accessibility(hint: Text("Only refreshes facilities that currently show N/A wait times"))
@@ -509,19 +531,37 @@ struct DashboardView: View {
     private var timeToggleGradient: LinearGradient {
         if showPatientsInLine {
             return LinearGradient(colors: [
-                Color(red: 0.09, green: 0.74, blue: 0.67),
-                Color(red: 0.06, green: 0.86, blue: 0.78)
+                ThemePalette.midnightHighlight,
+                ThemePalette.midnightAccent
             ], startPoint: .topLeading, endPoint: .bottomTrailing)
         } else {
             return LinearGradient(colors: [
-                Color(red: 0.23, green: 0.45, blue: 0.99),
-                Color(red: 0.38, green: 0.66, blue: 1.0)
+                ThemePalette.midnightPrimary,
+                ThemePalette.midnightSecondary
             ], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 
     private var timeToggleShadow: Color {
-        Color.black.opacity(0.14)
+        ThemePalette.midnightGlow
+    }
+
+    private var globalRefreshGradient: LinearGradient {
+        if isGlobalRefreshing {
+            return LinearGradient(colors: [
+                Color(red: 0.99, green: 0.58, blue: 0.25),
+                Color(red: 1.0, green: 0.72, blue: 0.37)
+            ], startPoint: .topLeading, endPoint: .bottomTrailing)
+        } else {
+            return LinearGradient(colors: [
+                ThemePalette.midnightHighlight,
+                ThemePalette.midnightAccent
+            ], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+    }
+
+    private var globalRefreshShadow: Color {
+        isGlobalRefreshing ? Color.black.opacity(0.12) : ThemePalette.midnightGlow
     }
 
     /// Refresh only facilities that are currently showing N/A
@@ -1292,18 +1332,20 @@ struct FacilityCard: View {
     }
     
     private var statusBadge: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Circle()
                 .fill(statusIndicatorColor)
-                .frame(width: 7, height: 7)
-                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                .frame(width: 8, height: 8)
+                .shadow(color: Color.black.opacity(0.12), radius: 2, x: 0, y: 1)
             Text(facility.status)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.white.opacity(0.92))
+                .foregroundColor(.white.opacity(0.95))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
         }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 12)
-        .frame(height: 32)
+        .padding(.vertical, 7)
+        .padding(.horizontal, 18)
+        .frame(minWidth: 104, alignment: .center)
         .background(
             Capsule()
                 .fill(statusBadgeGradient)
@@ -1312,19 +1354,19 @@ struct FacilityCard: View {
                         .stroke(Color.white.opacity(0.18), lineWidth: 1)
                 )
         )
-        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+        .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 4)
     }
     
     private var statusBadgeGradient: LinearGradient {
         if facility.isOpen {
             return LinearGradient(colors: [
-                Color(red: 0.16, green: 0.75, blue: 0.58),
-                Color(red: 0.05, green: 0.59, blue: 0.46)
+                ThemePalette.successStart,
+                ThemePalette.successEnd
             ], startPoint: .topLeading, endPoint: .bottomTrailing)
         } else {
             return LinearGradient(colors: [
-                Color(red: 0.86, green: 0.28, blue: 0.34),
-                Color(red: 0.72, green: 0.19, blue: 0.28)
+                ThemePalette.dangerStart,
+                ThemePalette.dangerEnd
             ], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
@@ -1341,8 +1383,8 @@ struct FacilityCard: View {
             ], startPoint: .topLeading, endPoint: .bottomTrailing)
         } else {
             return LinearGradient(colors: [
-                Color(red: 0.2, green: 0.47, blue: 1.0),
-                Color(red: 0.32, green: 0.7, blue: 1.0)
+                ThemePalette.midnightHighlight,
+                ThemePalette.midnightAccent
             ], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
@@ -1354,28 +1396,28 @@ struct FacilityCard: View {
     private var navigationButtonGradient: LinearGradient {
         if isNavigating && navigationFacilityId == facility.id {
             return LinearGradient(colors: [
-                Color(red: 0.1, green: 0.75, blue: 0.63),
-                Color(red: 0.05, green: 0.63, blue: 0.79)
+                ThemePalette.successStart,
+                ThemePalette.successEnd
             ], startPoint: .topLeading, endPoint: .bottomTrailing)
         } else if !canNavigate {
             return LinearGradient(colors: [
-                Color(red: 0.65, green: 0.68, blue: 0.75),
-                Color(red: 0.56, green: 0.6, blue: 0.66)
+                ThemePalette.disabledStart,
+                ThemePalette.disabledEnd
             ], startPoint: .topLeading, endPoint: .bottomTrailing)
         } else {
             return LinearGradient(colors: [
-                Color(red: 0.16, green: 0.46, blue: 0.97),
-                Color(red: 0.3, green: 0.7, blue: 1.0)
+                ThemePalette.midnightHighlight,
+                ThemePalette.midnightPrimary
             ], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
     
     private var navigationButtonShadow: Color {
-        canNavigate ? Color.black.opacity(0.16) : Color.black.opacity(0.05)
+        canNavigate ? ThemePalette.midnightGlow : Color.black.opacity(0.08)
     }
     
     private var navigationForegroundColor: Color {
-        canNavigate ? Color.white : Color.white.opacity(0.75)
+        canNavigate ? Color.white : Color.white.opacity(0.78)
     }
     
     // MARK: - Color Logic
