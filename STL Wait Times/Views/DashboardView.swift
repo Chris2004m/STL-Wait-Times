@@ -1122,9 +1122,11 @@ struct FacilityCard: View {
                         .kerning(0.4)
                     
                     Text(facility.name)
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.primary)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .minimumScaleFactor(0.9)
                     
                     // Facility details (show in all states)
                     HStack(spacing: 18) {
@@ -1145,8 +1147,8 @@ struct FacilityCard: View {
                 Spacer()
                 
                 // Right: Status and Navigation
-                VStack(alignment: .trailing, spacing: 12) {
-                    HStack(spacing: 10) {
+                VStack(alignment: .trailing, spacing: 10) {
+                    HStack(spacing: 8) {
                         statusBadge
                         
                         Button(action: {
@@ -1174,7 +1176,7 @@ struct FacilityCard: View {
                                         .foregroundColor(.white)
                                 }
                             }
-                            .frame(width: 34, height: 34)
+                            .frame(width: 30, height: 30)
                         }
                         .buttonStyle(.plain)
                         .disabled(isFacilityRefreshing(facility))
@@ -1182,24 +1184,25 @@ struct FacilityCard: View {
                     }
                     
                     Button(action: handleNavigationTap) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 6) {
                             Image(systemName: navigationButtonIcon)
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.system(size: 11, weight: .semibold))
                             Text("Navigate")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.system(size: 11, weight: .semibold))
                         }
                         .foregroundColor(navigationForegroundColor)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 11)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .frame(minWidth: 96)
                         .background(
-                            RoundedRectangle(cornerRadius: 16)
+                            RoundedRectangle(cornerRadius: 14)
                                 .fill(navigationButtonGradient)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
                                 )
                         )
-                        .shadow(color: navigationButtonShadow, radius: 12, x: 0, y: 5)
+                        .shadow(color: navigationButtonShadow, radius: 8, x: 0, y: 3)
                     }
                     .buttonStyle(.plain)
                     .disabled(!canNavigate)
@@ -1332,29 +1335,28 @@ struct FacilityCard: View {
     }
     
     private var statusBadge: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Circle()
                 .fill(statusIndicatorColor)
-                .frame(width: 8, height: 8)
-                .shadow(color: Color.black.opacity(0.12), radius: 2, x: 0, y: 1)
+                .frame(width: 6, height: 6)
+                .shadow(color: Color.black.opacity(0.1), radius: 1, x: 0, y: 1)
             Text(facility.status)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.white.opacity(0.95))
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.white.opacity(0.96))
                 .lineLimit(1)
-                .minimumScaleFactor(0.85)
         }
-        .padding(.vertical, 7)
-        .padding(.horizontal, 18)
-        .frame(minWidth: 104, alignment: .center)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 14)
+        .frame(minWidth: 82, alignment: .center)
         .background(
             Capsule()
                 .fill(statusBadgeGradient)
                 .overlay(
                     Capsule()
-                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
                 )
         )
-        .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 4)
+        .shadow(color: ThemePalette.midnightGlow, radius: 6, x: 0, y: 3)
     }
     
     private var statusBadgeGradient: LinearGradient {
@@ -1390,7 +1392,7 @@ struct FacilityCard: View {
     }
     
     private var refreshButtonShadow: Color {
-        isFacilityRefreshing(facility) ? Color.black.opacity(0.05) : Color.black.opacity(0.12)
+        isFacilityRefreshing(facility) ? Color.black.opacity(0.08) : ThemePalette.midnightGlow
     }
     
     private var navigationButtonGradient: LinearGradient {
