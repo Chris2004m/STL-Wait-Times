@@ -71,21 +71,34 @@ struct AppleMapsView: View {
         self.selectedFacilityId = selectedFacilityId
         
         // Initialize camera position from region
-        let center = coordinateRegion.wrappedValue.center
-        let span = coordinateRegion.wrappedValue.span
+        let region = coordinateRegion.wrappedValue
         
-        // Calculate approximate distance from span for camera
-        let distance = Self.calculateDistance(from: span)
-        
-        self._mapCameraPosition = State(initialValue: .region(MKCoordinateRegion(
-            center: center,
-            span: span
-        )))
+        self._mapCameraPosition = State(initialValue: .region(region))
     }
     
     // MARK: - Body
     
     var body: some View {
+        baseMap
+            .mapStyle(currentMapStyle)
+            .mapControls {
+                MapUserLocationButton()
+                MapCompass()
+                MapScaleView()
+            }
+            .onMapCameraChange(handleCameraChange)
+            .onTapGesture(coordinateSpace: .local, perform: handleMapTap)
+            .onChange(of: recenterTrigger) { oldValue, newValue in
+                handleRecenterTrigger(oldValue: oldValue, newValue: newValue)
+            }
+            .onChange(of: selectedFacilityId) { oldValue, newValue in
+                handleSelectionChange(oldValue: oldValue, newValue: newValue)
+            }
+    }
+    
+    // MARK: - Map Components
+    
+    private var baseMap: some View {
         Map(position: $mapCameraPosition, selection: $selectedAnnotationId) {
             // User location
             if showsUserLocation {
@@ -106,52 +119,47 @@ struct AppleMapsView: View {
                 .tag(annotation.id)
             }
         }
-        .mapStyle(currentMapStyle)
-        .mapControls {
-            MapUserLocationButton()
-            MapCompass()
-            MapScaleView()
+    }
+    
+    // MARK: - Event Handlers
+    
+    private func handleCameraChange(_ context: MapCameraUpdateContext) {
+        DispatchQueue.main.async {
+            coordinateRegion = context.region
         }
-        .onMapCameraChange { context in
-            // Update coordinate region binding when camera changes
-            DispatchQueue.main.async {
-                coordinateRegion = context.region
-            }
+    }
+    
+    private func handleMapTap(_ location: CGPoint) {
+        if let callback = onMapTap {
+            callback(coordinateRegion.center)
         }
-        .onTapGesture(coordinateSpace: .local) { location in
-            // Handle tap gesture - note: getting coordinate from tap is complex in SwiftUI Map
-            // For now, we'll trigger the callback with current center
-            if let callback = onMapTap {
-                callback(coordinateRegion.center)
-            }
+    }
+    
+    private func handleRecenterTrigger(oldValue: UUID?, newValue: UUID?) {
+        guard newValue != nil else { return }
+        
+        withAnimation(.easeInOut(duration: 1.5)) {
+            let distance = Self.calculateDistance(from: coordinateRegion.span)
+            mapCameraPosition = .camera(MapCamera(
+                centerCoordinate: coordinateRegion.center,
+                distance: distance,
+                heading: 0,
+                pitch: mapStyle == .satellite ? 45 : 0
+            ))
         }
-        .onChange(of: recenterTrigger) { oldValue, newValue in
-            guard newValue != nil else { return }
-            
-            // Recenter map with animation
-            withAnimation(.easeInOut(duration: 1.5)) {
-                let distance = Self.calculateDistance(from: coordinateRegion.span)
-                mapCameraPosition = .camera(MapCamera(
-                    centerCoordinate: coordinateRegion.center,
-                    distance: distance,
-                    heading: 0,
-                    pitch: mapStyle == .satellite ? 45 : 0
-                ))
-            }
+    }
+    
+    private func handleRegionChange(oldValue: MKCoordinateRegion, newValue: MKCoordinateRegion) {
+        let latDiff = abs(oldValue.center.latitude - newValue.center.latitude)
+        let lonDiff = abs(oldValue.center.longitude - newValue.center.longitude)
+        
+        if latDiff > 0.001 || lonDiff > 0.001 {
+            mapCameraPosition = .region(newValue)
         }
-        .onChange(of: coordinateRegion) { oldValue, newValue in
-            // Only update if change is significant to avoid loops
-            let latDiff = abs(oldValue.center.latitude - newValue.center.latitude)
-            let lonDiff = abs(oldValue.center.longitude - newValue.center.longitude)
-            
-            if latDiff > 0.001 || lonDiff > 0.001 {
-                let distance = Self.calculateDistance(from: newValue.span)
-                mapCameraPosition = .region(newValue)
-            }
-        }
-        .onChange(of: selectedFacilityId) { _, newValue in
-            selectedAnnotationId = newValue
-        }
+    }
+    
+    private func handleSelectionChange(oldValue: String?, newValue: String?) {
+        selectedAnnotationId = newValue
     }
     
     // MARK: - Map Style Configuration
@@ -216,7 +224,7 @@ struct FacilityMarkerView: View {
                 .font(.system(size: isSelected ? 14 : 10, weight: .bold))
                 .foregroundColor(.white)
         }
-        .scaleEffect(isSelected ? 1.1 : 1.0)
+        .scaleEffect(isSelected ? CGFloat(1.1) : CGFloat(1.0))
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isSelected)
     }
     
