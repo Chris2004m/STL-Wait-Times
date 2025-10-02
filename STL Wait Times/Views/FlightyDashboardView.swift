@@ -19,10 +19,11 @@ struct FlightyDashboardView: View {
         GeometryReader { geometry in
             ZStack {
                 // Background Map
-                MapboxView(
+                AppleMapsView(
                     coordinateRegion: $region,
                     annotations: mapboxAnnotations,
-                    mapStyle: "standard"
+                    mapStyle: .standard,
+                    showsUserLocation: true
                 )
                 .ignoresSafeArea()
                 .opacity(sheetState == .expanded ? 0.3 : 1.0)

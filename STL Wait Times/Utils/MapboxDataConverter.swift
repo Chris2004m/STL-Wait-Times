@@ -53,7 +53,7 @@ class MapboxDataConverter {
     
     // MARK: - Main Conversion Methods
     
-    /// Convert medical facilities to Mapbox annotations
+    /// Convert medical facilities to map annotations
     /// - Parameters:
     ///   - facilities: Array of medical facilities from app data
     ///   - waitTimes: Current wait times dictionary
@@ -61,7 +61,7 @@ class MapboxDataConverter {
     ///   - includeClosedFacilities: Whether to include closed facilities
     ///   - selectedFacilityId: ID of the selected facility for highlighting
     /// - Returns: Array of custom map annotations
-    func convertToMapboxAnnotations(
+    func convertToMapAnnotations(
         facilities: [Facility],
         waitTimes: [String: WaitTime] = [:],
         userLocation: CLLocation? = nil,
@@ -200,7 +200,7 @@ extension Facility {
         let facilities = [self]
         let waitTimes = waitTime != nil ? [self.id: waitTime!] : [:]
         
-        return converter.convertToMapboxAnnotations(
+        return converter.convertToMapAnnotations(
             facilities: facilities,
             waitTimes: waitTimes,
             userLocation: userLocation

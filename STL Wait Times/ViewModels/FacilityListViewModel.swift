@@ -333,7 +333,7 @@ class FacilityListViewModel: ObservableObject {
     // MARK: - Map Annotations
     func mapAnnotations() -> [CustomMapAnnotation] {
         let converter = MapboxDataConverter()
-        return converter.convertToMapboxAnnotations(
+        return converter.convertToMapAnnotations(
             facilities: facilities,
             waitTimes: waitTimes,
             userLocation: locationService.currentLocation

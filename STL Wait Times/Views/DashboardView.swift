@@ -1,8 +1,6 @@
 import SwiftUI
 import MapKit
 import CoreLocation
-import MapboxNavigationCore
-import MapboxNavigationUIKit
 
 // MARK: - Bottom Sheet States
 enum BottomSheetState: CaseIterable {
@@ -83,15 +81,12 @@ struct DashboardView: View {
     
     // MARK: - 3D Map Properties
     @State private var mapMode: MapDisplayMode = .hybrid2D
-    
-    // MARK: - Lighting
-    @State private var lightsEnabled: Bool = true
     @State private var selectedFacilityId: String? = nil
     
     // MARK: - Services
     @StateObject private var locationService = LocationService.shared
     @StateObject private var waitTimeService = WaitTimeService.shared
-    private let dataConverter = MapboxDataConverter()
+    private let dataConverter = MapboxDataConverter() // TODO: Rename to AppleMapsConverter
     
     // MARK: - Environment
     @Environment(\.colorScheme) private var colorScheme
@@ -104,17 +99,17 @@ struct DashboardView: View {
         print("📱 DashboardView: Creating view body")
         
         return ZStack {
-            // Background Map - Enhanced Mapbox View
-            MapboxView(
+            // Background Map - Apple Maps View
+            AppleMapsView(
                 coordinateRegion: $region,
-                annotations: mapboxAnnotations,
-                mapStyle: preferredMapStyle,
-                lightsEnabled: lightsEnabled,
+                annotations: facilityAnnotations,
+                mapStyle: convertToAppleMapStyle(preferredMapStyle),
+                showsUserLocation: true,
                 onMapTap: { coordinate in
                     handleMapTap(at: coordinate)
                 },
                 recenterTrigger: recenterTrigger,
-                navigationRoute: nil
+                selectedFacilityId: selectedFacilityId
             )
             .ignoresSafeArea()
             .opacity(sheetState == .expanded ? DashboardConstants.mapOpacity : 1.0)
@@ -122,9 +117,6 @@ struct DashboardView: View {
             
             // Location Centering Button
             locationButton
-            
-            // Lights Toggle Button
-            lightsToggleButton
             
             // Map Style Toggle Button
             mapStyleToggleButton
@@ -162,51 +154,29 @@ struct DashboardView: View {
     // MARK: - Location Button
     
     @ViewBuilder
-    private var lightsToggleButton: some View {
-        VStack {
-            HStack {
-                Spacer()
-                
-                // Lights toggle button matching compass/location button style
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        lightsEnabled.toggle()
-                    }
-                }) {
-                    Image(systemName: lightsEnabled ? "lightbulb.fill" : "lightbulb")
-                        .font(.system(size: iconSize, weight: .medium))
-                        .foregroundColor(lightsEnabled ? .yellow : iconColor)
-                }
-                .frame(width: compassButtonSize, height: compassButtonSize)
-                .background(compassButtonBackground)
-                .clipShape(Circle())
-                .shadow(color: compassShadowColor, radius: compassShadowRadius, x: compassShadowOffset.width, y: compassShadowOffset.height)
-                .accessibility(label: Text(lightsEnabled ? "Disable 3D lights" : "Enable 3D lights"))
-                .accessibility(hint: Text("Toggles dynamic 3D lighting effects on the map"))
-                .padding(.trailing, compassButtonTrailingOffset) // Align with compass horizontally
-            }
-            
-            Spacer()
-        }
-        .padding(.top, compassButtonTopOffset + compassButtonSize + buttonSpacing + compassButtonSize + buttonSpacing) // Position below location button with proper spacing
-    }
-    
-    @ViewBuilder
     private var mapStyleToggleButton: some View {
         VStack {
             HStack {
                 Spacer()
                 
-                // Map style toggle button (Standard/Satellite)
+                // Map style toggle button (Standard/Satellite/Hybrid)
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        preferredMapStyle = (preferredMapStyle.lowercased() == "standard") ? "satellite" : "standard"
+                        // Cycle through: standard -> satellite -> hybrid -> standard
+                        switch preferredMapStyle.lowercased() {
+                        case "standard":
+                            preferredMapStyle = "satellite"
+                        case "satellite":
+                            preferredMapStyle = "hybrid"
+                        default:
+                            preferredMapStyle = "standard"
+                        }
                     }
                     // Haptic feedback
                     let selectionFeedback = UISelectionFeedbackGenerator()
                     selectionFeedback.selectionChanged()
                 }) {
-                    Image(systemName: preferredMapStyle.lowercased() == "standard" ? "map" : "map.fill")
+                    Image(systemName: mapStyleIcon)
                         .font(.system(size: iconSize, weight: .medium))
                         .foregroundColor(iconColor)
                 }
@@ -214,14 +184,14 @@ struct DashboardView: View {
                 .background(compassButtonBackground)
                 .clipShape(Circle())
                 .shadow(color: compassShadowColor, radius: compassShadowRadius, x: compassShadowOffset.width, y: compassShadowOffset.height)
-                .accessibility(label: Text(preferredMapStyle.lowercased() == "standard" ? "Switch to Satellite map" : "Switch to Standard map"))
-                .accessibility(hint: Text("Toggles between Standard and Satellite Streets map styles"))
+                .accessibility(label: Text(mapStyleAccessibilityLabel))
+                .accessibility(hint: Text("Cycles between Standard, Satellite, and Hybrid map styles"))
                 .padding(.trailing, compassButtonTrailingOffset)
             }
             
             Spacer()
         }
-        .padding(.top, compassButtonTopOffset + compassButtonSize + buttonSpacing + compassButtonSize + buttonSpacing + compassButtonSize + buttonSpacing) // Stack below lights button
+        .padding(.top, compassButtonTopOffset + compassButtonSize + buttonSpacing) // Position below location button
     }
     
     private var locationButton: some View {
@@ -263,9 +233,9 @@ struct DashboardView: View {
     
     // MARK: - Computed Properties for Consistent Styling
     
-    /// Compass button size - matches native Mapbox control
+    /// Compass button size - matches native map controls
     private var compassButtonSize: CGFloat {
-        36 // Exact native Mapbox compass button size
+        36 // Standard map control button size
     }
     
     /// Icon size matching native compass button
@@ -273,9 +243,9 @@ struct DashboardView: View {
         16 // Match compass icon size exactly
     }
     
-    /// Background matching native Mapbox compass button
+    /// Background matching native map compass button
     private var compassButtonBackground: some View {
-        // Dynamic background: match Mapbox compass button colors
+        // Dynamic background: match system map button colors
         colorScheme == .dark ? Color.black.opacity(0.9) : Color.white.opacity(0.85)
     }
     
@@ -333,6 +303,46 @@ struct DashboardView: View {
             return 1.0 // Fully visible when enabled
         } else {
             return 0.6 // Dimmed when disabled
+        }
+    }
+    
+    /// Map style icon based on current style
+    private var mapStyleIcon: String {
+        switch preferredMapStyle.lowercased() {
+        case "standard":
+            return "map"
+        case "satellite":
+            return "globe.americas.fill"
+        case "hybrid":
+            return "map.fill"
+        default:
+            return "map"
+        }
+    }
+    
+    /// Accessibility label for map style button
+    private var mapStyleAccessibilityLabel: String {
+        switch preferredMapStyle.lowercased() {
+        case "standard":
+            return "Current: Standard map. Tap to switch to Satellite"
+        case "satellite":
+            return "Current: Satellite map. Tap to switch to Hybrid"
+        case "hybrid":
+            return "Current: Hybrid map. Tap to switch to Standard"
+        default:
+            return "Change map style"
+        }
+    }
+    
+    /// Convert string map style to AppleMapStyle enum
+    private func convertToAppleMapStyle(_ style: String) -> AppleMapStyle {
+        switch style.lowercased() {
+        case "satellite":
+            return .satellite
+        case "hybrid":
+            return .hybrid
+        default:
+            return .standard
         }
     }
     
@@ -698,7 +708,7 @@ struct DashboardView: View {
         // Animate the region change and trigger recenter
         withAnimation(.easeInOut(duration: 0.8)) {
             region = userLocationRegion
-            // Generate new trigger ID to force MapboxView update
+            // Generate new trigger ID to force map update
             recenterTrigger = UUID()
         }
         
@@ -735,7 +745,7 @@ struct DashboardView: View {
         let tapLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
         let threshold: CLLocationDistance = 1000 // 1km threshold
         
-        return mapboxAnnotations.first { annotation in
+        return facilityAnnotations.first { annotation in
             let facilityLocation = CLLocation(latitude: annotation.coordinate.latitude, longitude: annotation.coordinate.longitude)
             return tapLocation.distance(from: facilityLocation) < threshold
         }
@@ -797,7 +807,7 @@ struct DashboardView: View {
             region = targetRegion
         }
         
-        // Trigger recenter to ensure MapboxView updates even if coordinates are the same
+        // Trigger recenter to ensure map updates even if coordinates are the same
         recenterTrigger = UUID()
         
         // Reset the recenter trigger after animation completes
@@ -832,10 +842,10 @@ struct DashboardView: View {
         ]
     }
     
-    // MARK: - Mapbox Annotations (Legacy)
-    // Note: This is replaced by the more complete mapboxAnnotations method below
+    // MARK: - Facility Annotations (Legacy)
+    // Note: This is replaced by the more complete facilityAnnotations method below
     /*
-    private var mapboxAnnotationsLegacy: [CustomMapAnnotation] {
+    private var facilityAnnotationsLegacy: [CustomMapAnnotation] {
         mapAnnotations.map { annotation in
             CustomMapAnnotation(
                 id: annotation.id,
@@ -848,9 +858,9 @@ struct DashboardView: View {
     }
     */
     
-    // MARK: - 3D Mapbox Annotations
+    // MARK: - Facility Annotations
     /// Convert facility data to custom map annotations with real coordinates and wait times
-    private var mapboxAnnotations: [CustomMapAnnotation] {
+    private var facilityAnnotations: [CustomMapAnnotation] {
         // Use real facilities from FacilityData with authentic coordinates
         let realFacilities = facilityData.compactMap { dashboardFacility -> Facility? in
             // Find the corresponding real facility data with authentic coordinates
@@ -885,12 +895,12 @@ struct DashboardView: View {
             }
         )
         
-        print("🗺️ Creating Mapbox annotations for \(realFacilities.count) facilities with real coordinates")
+        print("🗺️ Creating facility annotations for \(realFacilities.count) facilities with real coordinates")
         for facility in realFacilities.prefix(3) {
             print("   - \(facility.name): \(facility.coordinate.latitude), \(facility.coordinate.longitude)")
         }
         
-        return dataConverter.convertToMapboxAnnotations(
+        return dataConverter.convertToMapAnnotations(
             facilities: realFacilities,
             waitTimes: waitTimes,
             userLocation: locationService.currentLocation,
@@ -1148,41 +1158,9 @@ struct FacilityCard: View {
                 
                 // Right: Status and Navigation
                 VStack(alignment: .trailing, spacing: 10) {
-                    HStack(spacing: 8) {
-                        statusBadge
-                        
-                        Button(action: {
-                            print("🔄 Dashboard refresh tapped for \(facility.name)")
-                            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                            impactFeedback.impactOccurred()
-                            refreshFacility(facility)
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(refreshButtonGradient)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.white.opacity(0.22), lineWidth: 1)
-                                    )
-                                    .shadow(color: refreshButtonShadow, radius: 8, x: 0, y: 3)
-                                
-                                if isFacilityRefreshing(facility) {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        .scaleEffect(0.55 as CGFloat)
-                                } else {
-                                    Image(systemName: "arrow.clockwise")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(.white)
-                                }
-                            }
-                            .frame(width: 30, height: 30)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(isFacilityRefreshing(facility))
-                        .opacity(isFacilityRefreshing(facility) ? 0.55 : 1)
-                    }
-                    
+                    statusBadge
+                        .padding(.top, 2)
+
                     Button(action: handleNavigationTap) {
                         HStack(spacing: 6) {
                             Image(systemName: navigationButtonIcon)
@@ -1377,24 +1355,6 @@ struct FacilityCard: View {
         facility.isOpen ? Color.white.opacity(0.85) : Color.white.opacity(0.9)
     }
     
-    private var refreshButtonGradient: LinearGradient {
-        if isFacilityRefreshing(facility) {
-            return LinearGradient(colors: [
-                Color(red: 0.99, green: 0.55, blue: 0.32),
-                Color(red: 1.0, green: 0.72, blue: 0.4)
-            ], startPoint: .topLeading, endPoint: .bottomTrailing)
-        } else {
-            return LinearGradient(colors: [
-                ThemePalette.midnightHighlight,
-                ThemePalette.midnightAccent
-            ], startPoint: .topLeading, endPoint: .bottomTrailing)
-        }
-    }
-    
-    private var refreshButtonShadow: Color {
-        isFacilityRefreshing(facility) ? Color.black.opacity(0.08) : ThemePalette.midnightGlow
-    }
-    
     private var navigationButtonGradient: LinearGradient {
         if isNavigating && navigationFacilityId == facility.id {
             return LinearGradient(colors: [
@@ -1462,37 +1422,7 @@ struct FacilityCard: View {
             return nil
         }
     }
-    
-    // MARK: - Refresh Functionality
-    
-    /// Check if facility should show refresh button
-    private func shouldShowRefreshButton(for facility: MedicalFacility) -> Bool {
-        // Show refresh button for all facilities
-        return true
-    }
-    
-    /// Check if facility is currently being refreshed
-    private func isFacilityRefreshing(_ facility: MedicalFacility) -> Bool {
-        return waitTimeService.refreshingFacilities.contains(facility.id)
-    }
-    
-    /// Refresh wait time for a specific facility
-    private func refreshFacility(_ facility: MedicalFacility) {
-        // Look up the actual Facility object from FacilityData using the ID
-        guard let actualFacility = FacilityData.allFacilities.first(where: { $0.id == facility.id }) else {
-            print("❌ Could not find facility \(facility.name) in FacilityData")
-            return
-        }
-        
-        print("🔍 Found actual facility: \(actualFacility.name)")
-        print("   - API Endpoint: \(actualFacility.apiEndpoint ?? "NONE")")
-        print("   - Website URL: \(actualFacility.websiteURL ?? "NONE")")
-        
-        waitTimeService.fetchSingleFacilityWaitTime(facility: actualFacility)
-    }
 }
-
-// MARK: - Corner Radius Extension (Removed - now in SimpleBottomSheetView)
 
 // MARK: - Preview
 struct DashboardView_Previews: PreviewProvider {
