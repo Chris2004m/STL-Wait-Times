@@ -165,23 +165,6 @@ struct FacilityRowView: View {
                 
                 Spacer()
                 
-                // Refresh button (only show for facilities with N/A or stale data)
-                if viewModel.shouldShowRefreshOption(for: facility) && !viewModel.isRefreshing(facility) {
-                    Button(action: {
-                        print("🔄 Refresh button tapped for \(facility.name)")
-                        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                        impactFeedback.impactOccurred()
-                        viewModel.refreshSingleFacility(facility)
-                    }) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.caption)
-                            .foregroundColor(.blue)
-                            .padding(4)
-                            .background(Circle().fill(.blue.opacity(0.1)))
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
-                
                 // Wait time indicators
                 waitTimeIndicators
             }
