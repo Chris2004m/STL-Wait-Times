@@ -271,17 +271,17 @@ struct DashboardView: View {
     
     /// Trailing offset matching native compass button
     private var compassButtonTrailingOffset: CGFloat {
-        8 // Align horizontally with native compass
+        16 // Safe distance from right edge
     }
     
     /// Top offset for compass button positioning
     private var compassButtonTopOffset: CGFloat {
-        16 // Distance from top of safe area
+        60 // Distance from top including safe area
     }
     
     /// Spacing between compass and location buttons
     private var buttonSpacing: CGFloat {
-        8 // Consistent spacing between buttons
+        12 // Consistent spacing between buttons
     }
     
     /// Location button icon based on state
