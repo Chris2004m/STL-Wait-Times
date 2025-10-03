@@ -6,9 +6,9 @@
     "auditLog": "/Users/chris/Desktop/Personal Projects/STL Wait Times/logs/.dd3ad9cdb8e6ff159c4c56f8c1ebef164df9a481-audit.json",
     "files": [
         {
-            "date": 1753535872728,
-            "name": "/Users/chris/Desktop/Personal Projects/STL Wait Times/logs/mcp-puppeteer-2025-07-26.log",
-            "hash": "70d12587f9072bf3d68b94513773262cc9053186a7ca10d8c61d320dc72be5e9"
+            "date": 1758164696773,
+            "name": "/Users/chris/Desktop/Personal Projects/STL Wait Times/logs/mcp-puppeteer-2025-09-17.log",
+            "hash": "3a2f8acb517105142a6e529c46f68ff71ff0ca2381dec99022f94f42e3e56522"
         }
     ],
     "hashType": "sha256"
