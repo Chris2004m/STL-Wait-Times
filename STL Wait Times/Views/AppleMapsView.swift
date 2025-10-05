@@ -45,6 +45,9 @@ struct AppleMapsView: View {
     /// Selected facility ID for highlighting
     var selectedFacilityId: String?
     
+    /// Optional route polyline for navigation
+    var routePolyline: MKPolyline?
+    
     // MARK: - State
     
     @State private var mapCameraPosition: MapCameraPosition
@@ -60,7 +63,8 @@ struct AppleMapsView: View {
         showsUserLocation: Bool = true,
         onMapTap: ((CLLocationCoordinate2D) -> Void)? = nil,
         recenterTrigger: UUID? = nil,
-        selectedFacilityId: String? = nil
+        selectedFacilityId: String? = nil,
+        routePolyline: MKPolyline? = nil
     ) {
         self._coordinateRegion = coordinateRegion
         self.annotations = annotations
@@ -69,6 +73,7 @@ struct AppleMapsView: View {
         self.onMapTap = onMapTap
         self.recenterTrigger = recenterTrigger
         self.selectedFacilityId = selectedFacilityId
+        self.routePolyline = routePolyline
         
         // Initialize camera position from region
         let region = coordinateRegion.wrappedValue
@@ -103,6 +108,12 @@ struct AppleMapsView: View {
             // User location
             if showsUserLocation {
                 UserAnnotation()
+            }
+            
+            // Route polyline (if navigation is active)
+            if let polyline = routePolyline {
+                MapPolyline(polyline)
+                    .stroke(.blue, lineWidth: 8)
             }
             
             // Facility annotations
