@@ -1185,7 +1185,7 @@ struct FacilityCard: View {
                     .buttonStyle(.plain)
                     .disabled(!canNavigate)
                     .accessibilityLabel("Navigate to \(facility.name)")
-                    .accessibilityHint(canNavigate ? "Starts turn-by-turn navigation to this medical facility" : "Navigation not available. Check location permissions.")
+                    .accessibilityHint(canNavigate ? "Opens turn-by-turn directions to this medical facility in Apple Maps" : "Navigation is unavailable for this facility.")
                 }
                 .frame(maxHeight: .infinity, alignment: .topTrailing)
             }

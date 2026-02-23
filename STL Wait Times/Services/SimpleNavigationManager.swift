@@ -30,8 +30,6 @@ class SimpleNavigationManager: ObservableObject {
     
     // MARK: - Private Properties
     
-    private let navigationService = NavigationService.shared
-    
     // MARK: - Initialization
     
     private init() {
@@ -98,9 +96,12 @@ class SimpleNavigationManager: ObservableObject {
         print("   📮 Full Address: \(fullAddress)")
         print("   📍 Coordinates: \(facility.coordinate.latitude), \(facility.coordinate.longitude)")
         
-        // Open in Maps app showing facility details page (not immediate navigation)
-        // This shows the detailed view with hours, reviews, and action buttons
-        MKMapItem.openMaps(with: [mapItem], launchOptions: [:])
+        // Open Apple Maps directly in directions mode from current location.
+        let launchOptions: [String: Any] = [
+            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving,
+            MKLaunchOptionsShowsTrafficKey: true
+        ]
+        MKMapItem.openMaps(with: [MKMapItem.forCurrentLocation(), mapItem], launchOptions: launchOptions)
         
         // Update state temporarily
         isNavigating = true
@@ -128,7 +129,8 @@ class SimpleNavigationManager: ObservableObject {
     
     /// Check if navigation is possible
     func canNavigate(to facility: Facility) -> Bool {
-        return navigationService.canNavigate(to: facility)
+        let coordinate = facility.coordinate
+        return CLLocationCoordinate2DIsValid(coordinate) &&
+            !(coordinate.latitude == 0 && coordinate.longitude == 0)
     }
 }
-
