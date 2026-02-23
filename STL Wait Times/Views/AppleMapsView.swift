@@ -2,8 +2,7 @@
 //  AppleMapsView.swift
 //  STL Wait Times
 //
-//  Apple Maps integration with satellite imagery and realistic globe view
-//  Created on 10/1/25
+//  Stable Apple Maps integration backed by MKMapView.
 //
 
 import SwiftUI
@@ -15,243 +14,281 @@ enum AppleMapStyle: String, CaseIterable {
     case standard = "Standard"
     case satellite = "Satellite"
     case hybrid = "Hybrid"
-    
+
     var displayName: String { rawValue }
 }
 
-/// Apple Maps view with satellite imagery, realistic globe, and facility annotations
-struct AppleMapsView: View {
-    
+/// Apple Maps view with map styles, facility annotations, recentering, and optional route overlay.
+struct AppleMapsView: UIViewRepresentable {
+
     // MARK: - Properties
-    
-    /// Map camera position binding
+
     @Binding var coordinateRegion: MKCoordinateRegion
-    
-    /// Facility annotations to display
     var annotations: [CustomMapAnnotation]
-    
-    /// Current map style
     var mapStyle: AppleMapStyle
-    
-    /// Whether to show user location
     var showsUserLocation: Bool
-    
-    /// Callback for map tap events
     var onMapTap: ((CLLocationCoordinate2D) -> Void)?
-    
-    /// Trigger for recentering map
     var recenterTrigger: UUID?
-    
-    /// Selected facility ID for highlighting
     var selectedFacilityId: String?
-    
-    /// Optional route polyline for navigation
     var routePolyline: MKPolyline?
-    
-    // MARK: - State
-    
-    @State private var mapCameraPosition: MapCameraPosition
-    @State private var selectedAnnotationId: String?
-    @Environment(\.colorScheme) private var colorScheme
-    
-    // MARK: - Initialization
-    
-    init(
-        coordinateRegion: Binding<MKCoordinateRegion>,
-        annotations: [CustomMapAnnotation] = [],
-        mapStyle: AppleMapStyle = .satellite,
-        showsUserLocation: Bool = true,
-        onMapTap: ((CLLocationCoordinate2D) -> Void)? = nil,
-        recenterTrigger: UUID? = nil,
-        selectedFacilityId: String? = nil,
-        routePolyline: MKPolyline? = nil
-    ) {
-        self._coordinateRegion = coordinateRegion
-        self.annotations = annotations
-        self.mapStyle = mapStyle
-        self.showsUserLocation = showsUserLocation
-        self.onMapTap = onMapTap
-        self.recenterTrigger = recenterTrigger
-        self.selectedFacilityId = selectedFacilityId
-        self.routePolyline = routePolyline
-        
-        // Initialize camera position from region
-        let region = coordinateRegion.wrappedValue
-        
-        self._mapCameraPosition = State(initialValue: .region(region))
+
+    // MARK: - UIViewRepresentable
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
     }
-    
-    // MARK: - Body
-    
-    var body: some View {
-        baseMap
-            .mapStyle(currentMapStyle)
-            .mapControls {
-                MapUserLocationButton()
-                MapCompass()
-                MapScaleView()
-            }
-            .onMapCameraChange(handleCameraChange)
-            .onTapGesture(coordinateSpace: .local, perform: handleMapTap)
-            .onChange(of: recenterTrigger) { oldValue, newValue in
-                handleRecenterTrigger(oldValue: oldValue, newValue: newValue)
-            }
-            .onChange(of: selectedFacilityId) { oldValue, newValue in
-                handleSelectionChange(oldValue: oldValue, newValue: newValue)
-            }
+
+    func makeUIView(context: Context) -> MKMapView {
+        let mapView = MKMapView(frame: .zero)
+        mapView.delegate = context.coordinator
+        mapView.showsUserLocation = showsUserLocation
+        mapView.showsCompass = false
+        mapView.showsScale = false
+        mapView.pointOfInterestFilter = .includingAll
+
+        applyMapStyle(to: mapView)
+
+        context.coordinator.isProgrammaticRegionChange = true
+        mapView.setRegion(coordinateRegion, animated: false)
+        context.coordinator.isProgrammaticRegionChange = false
+        context.coordinator.lastRecenterTrigger = recenterTrigger
+
+        let tapRecognizer = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleMapTap(_:)))
+        tapRecognizer.cancelsTouchesInView = false
+        mapView.addGestureRecognizer(tapRecognizer)
+
+        context.coordinator.mapView = mapView
+        return mapView
     }
-    
-    // MARK: - Map Components
-    
-    private var baseMap: some View {
-        Map(position: $mapCameraPosition, selection: $selectedAnnotationId) {
-            // User location
-            if showsUserLocation {
-                UserAnnotation()
-            }
-            
-            // Route polyline (if navigation is active)
-            if let polyline = routePolyline {
-                MapPolyline(polyline)
-                    .stroke(.blue, lineWidth: 8)
-            }
-            
-            // Facility annotations
-            ForEach(annotations) { annotation in
-                Annotation(
-                    annotation.title ?? "Facility",
-                    coordinate: annotation.coordinate
-                ) {
-                    FacilityMarkerView(
-                        annotation: annotation,
-                        isSelected: annotation.id == selectedFacilityId
-                    )
-                }
-                .tag(annotation.id)
-            }
-        }
+
+    func updateUIView(_ mapView: MKMapView, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.mapView = mapView
+
+        mapView.showsUserLocation = showsUserLocation
+        applyMapStyle(to: mapView)
+
+        syncRegion(on: mapView, with: context.coordinator)
+        syncAnnotations(on: mapView)
+        syncRouteOverlay(on: mapView, with: context.coordinator)
+        context.coordinator.applySelection(selectedFacilityId)
     }
-    
-    // MARK: - Event Handlers
-    
-    private func handleCameraChange(_ context: MapCameraUpdateContext) {
-        DispatchQueue.main.async {
-            coordinateRegion = context.region
-        }
-    }
-    
-    private func handleMapTap(_ location: CGPoint) {
-        if let callback = onMapTap {
-            callback(coordinateRegion.center)
-        }
-    }
-    
-    private func handleRecenterTrigger(oldValue: UUID?, newValue: UUID?) {
-        guard newValue != nil else { return }
-        
-        withAnimation(.easeInOut(duration: 1.5)) {
-            let distance = Self.calculateDistance(from: coordinateRegion.span)
-            mapCameraPosition = .camera(MapCamera(
-                centerCoordinate: coordinateRegion.center,
-                distance: distance,
-                heading: 0,
-                pitch: mapStyle == .satellite ? 45 : 0
-            ))
-        }
-    }
-    
-    private func handleRegionChange(oldValue: MKCoordinateRegion, newValue: MKCoordinateRegion) {
-        let latDiff = abs(oldValue.center.latitude - newValue.center.latitude)
-        let lonDiff = abs(oldValue.center.longitude - newValue.center.longitude)
-        
-        if latDiff > 0.001 || lonDiff > 0.001 {
-            mapCameraPosition = .region(newValue)
-        }
-    }
-    
-    private func handleSelectionChange(oldValue: String?, newValue: String?) {
-        selectedAnnotationId = newValue
-    }
-    
-    // MARK: - Map Style Configuration
-    
-    private var currentMapStyle: MapStyle {
+
+    // MARK: - Private Helpers
+
+    private func applyMapStyle(to mapView: MKMapView) {
         switch mapStyle {
         case .standard:
-            return .standard(elevation: .realistic, pointsOfInterest: .including([.hospital, .publicTransport]))
+            mapView.mapType = .standard
         case .satellite:
-            return .imagery(elevation: .realistic)
+            mapView.mapType = .satellite
         case .hybrid:
-            return .hybrid(elevation: .realistic, pointsOfInterest: .including([.hospital, .publicTransport]))
+            mapView.mapType = .hybrid
         }
     }
-    
-    // MARK: - Helper Methods
-    
-    /// Calculate camera distance from coordinate span
-    private static func calculateDistance(from span: MKCoordinateSpan) -> CLLocationDistance {
-        // Approximate meters per degree of latitude
-        let metersPerDegreeLat: Double = 111_000
-        
-        // Calculate distance based on latitude span
-        let distance = span.latitudeDelta * metersPerDegreeLat * 1.5
-        
-        // Clamp between reasonable values
-        return min(max(distance, 100), 20_000_000) // 100m to 20,000km
+
+    private func syncRegion(on mapView: MKMapView, with coordinator: Coordinator) {
+        let shouldAnimate = recenterTrigger != nil && recenterTrigger != coordinator.lastRecenterTrigger
+        coordinator.lastRecenterTrigger = recenterTrigger
+
+        guard !mapView.region.isApproximatelyEqual(to: coordinateRegion) else { return }
+
+        coordinator.isProgrammaticRegionChange = true
+        mapView.setRegion(coordinateRegion, animated: shouldAnimate)
+        DispatchQueue.main.async {
+            coordinator.isProgrammaticRegionChange = false
+        }
     }
-}
 
-// MARK: - Facility Marker View
+    private func syncAnnotations(on mapView: MKMapView) {
+        let existing = mapView.annotations.compactMap { $0 as? FacilityAnnotation }
+        let existingById = Dictionary(uniqueKeysWithValues: existing.map { ($0.facilityId, $0) })
+        let incomingById = Dictionary(uniqueKeysWithValues: annotations.map { ($0.id, $0) })
 
-/// Custom marker view for facility annotations
-struct FacilityMarkerView: View {
-    let annotation: CustomMapAnnotation
-    let isSelected: Bool
-    
-    @Environment(\.colorScheme) private var colorScheme
-    
-    var body: some View {
-        ZStack {
-            // Outer glow for selected state
-            if isSelected {
-                Circle()
-                    .fill(markerColor.opacity(0.3))
-                    .frame(width: 44, height: 44)
-                    .blur(radius: 8)
+        let idsToRemove = Set(existingById.keys).subtracting(incomingById.keys)
+        let idsToAdd = Set(incomingById.keys).subtracting(existingById.keys)
+
+        if !idsToRemove.isEmpty {
+            let toRemove = existing.filter { idsToRemove.contains($0.facilityId) }
+            mapView.removeAnnotations(toRemove)
+        }
+
+        for id in idsToAdd {
+            guard let model = incomingById[id] else { continue }
+            let annotation = FacilityAnnotation(model: model)
+            mapView.addAnnotation(annotation)
+        }
+
+        for (id, model) in incomingById {
+            guard let current = existingById[id] else { continue }
+            if current.coordinate.latitude != model.coordinate.latitude || current.coordinate.longitude != model.coordinate.longitude {
+                current.coordinate = model.coordinate
             }
-            
-            // Main marker circle
-            Circle()
-                .fill(markerColor)
-                .frame(width: isSelected ? 32 : 24, height: isSelected ? 32 : 24)
-                .overlay(
-                    Circle()
-                        .stroke(Color.white, lineWidth: isSelected ? 3 : 2)
-                )
-                .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-            
-            // Icon
-            Image(systemName: "cross.fill")
-                .font(.system(size: isSelected ? 14 : 10, weight: .bold))
-                .foregroundColor(.white)
+            current.title = model.title
+            current.subtitle = model.subtitle
+            current.markerColor = model.color
         }
-        .scaleEffect(isSelected ? CGFloat(1.1) : CGFloat(1.0))
-        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isSelected)
     }
-    
-    private var markerColor: Color {
-        Color(annotation.color)
+
+    private func syncRouteOverlay(on mapView: MKMapView, with coordinator: Coordinator) {
+        let existingPolylines = mapView.overlays.compactMap { $0 as? MKPolyline }
+
+        guard let routePolyline else {
+            if !existingPolylines.isEmpty {
+                mapView.removeOverlays(existingPolylines)
+            }
+            coordinator.routeSignature = nil
+            return
+        }
+
+        let signature = Self.signature(for: routePolyline)
+        guard signature != coordinator.routeSignature else { return }
+
+        if !existingPolylines.isEmpty {
+            mapView.removeOverlays(existingPolylines)
+        }
+        mapView.addOverlay(routePolyline)
+        coordinator.routeSignature = signature
+    }
+
+    private static func signature(for polyline: MKPolyline) -> String {
+        guard polyline.pointCount > 0 else { return "0" }
+
+        var coordinates = [CLLocationCoordinate2D](repeating: .init(latitude: 0, longitude: 0), count: polyline.pointCount)
+        polyline.getCoordinates(&coordinates, range: NSRange(location: 0, length: polyline.pointCount))
+
+        guard let first = coordinates.first, let last = coordinates.last else {
+            return "\(polyline.pointCount)"
+        }
+
+        return "\(polyline.pointCount)-\(first.latitude)-\(first.longitude)-\(last.latitude)-\(last.longitude)"
+    }
+
+    // MARK: - Coordinator
+
+    final class Coordinator: NSObject, MKMapViewDelegate {
+        var parent: AppleMapsView
+        weak var mapView: MKMapView?
+        var isProgrammaticRegionChange = false
+        var lastRecenterTrigger: UUID?
+        var routeSignature: String?
+
+        init(parent: AppleMapsView) {
+            self.parent = parent
+        }
+
+        @objc func handleMapTap(_ recognizer: UITapGestureRecognizer) {
+            guard let mapView = recognizer.view as? MKMapView else { return }
+            let point = recognizer.location(in: mapView)
+            let coordinate = mapView.convert(point, toCoordinateFrom: mapView)
+            parent.onMapTap?(coordinate)
+        }
+
+        func applySelection(_ selectedFacilityId: String?) {
+            guard let mapView else { return }
+
+            let facilityAnnotations = mapView.annotations.compactMap { $0 as? FacilityAnnotation }
+
+            if let selectedFacilityId,
+               let annotation = facilityAnnotations.first(where: { $0.facilityId == selectedFacilityId }) {
+                if mapView.selectedAnnotations.first(where: { ($0 as? FacilityAnnotation)?.facilityId == selectedFacilityId }) == nil {
+                    mapView.selectAnnotation(annotation, animated: true)
+                }
+            } else if !mapView.selectedAnnotations.isEmpty {
+                mapView.selectedAnnotations.forEach { mapView.deselectAnnotation($0, animated: true) }
+            }
+
+            // Refresh marker styling to keep selected marker visually emphasized.
+            for annotation in facilityAnnotations {
+                if let view = mapView.view(for: annotation) as? MKMarkerAnnotationView {
+                    let isSelected = annotation.facilityId == selectedFacilityId
+                    view.displayPriority = isSelected ? .required : .defaultHigh
+                    view.transform = isSelected ? CGAffineTransform(scaleX: 1.12, y: 1.12) : .identity
+                }
+            }
+        }
+
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            guard !isProgrammaticRegionChange else { return }
+
+            let region = mapView.region
+            DispatchQueue.main.async {
+                self.parent.coordinateRegion = region
+            }
+        }
+
+        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            if annotation is MKUserLocation {
+                return nil
+            }
+
+            guard let facility = annotation as? FacilityAnnotation else {
+                return nil
+            }
+
+            let identifier = "FacilityMarker"
+            let view = (mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView)
+                ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+
+            view.annotation = annotation
+            view.canShowCallout = false
+            view.titleVisibility = .hidden
+            view.subtitleVisibility = .hidden
+            view.markerTintColor = facility.markerColor
+            view.glyphImage = UIImage(systemName: "cross.fill")
+            view.glyphTintColor = .white
+
+            let isSelected = facility.facilityId == parent.selectedFacilityId
+            view.displayPriority = isSelected ? .required : .defaultHigh
+            view.transform = isSelected ? CGAffineTransform(scaleX: 1.12, y: 1.12) : .identity
+
+            return view
+        }
+
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let polyline = overlay as? MKPolyline {
+                let renderer = MKPolylineRenderer(polyline: polyline)
+                renderer.strokeColor = .systemBlue
+                renderer.lineWidth = 7
+                renderer.lineJoin = .round
+                renderer.lineCap = .round
+                return renderer
+            }
+
+            return MKOverlayRenderer(overlay: overlay)
+        }
     }
 }
 
-// MARK: - Preview
+private final class FacilityAnnotation: MKPointAnnotation {
+    let facilityId: String
+    var markerColor: UIColor
 
-#Preview("Apple Maps - Satellite") {
+    init(model: CustomMapAnnotation) {
+        self.facilityId = model.id
+        self.markerColor = model.color
+        super.init()
+        self.coordinate = model.coordinate
+        self.title = model.title
+        self.subtitle = model.subtitle
+    }
+}
+
+private extension MKCoordinateRegion {
+    func isApproximatelyEqual(to other: MKCoordinateRegion, epsilon: CLLocationDegrees = 0.0005) -> Bool {
+        abs(center.latitude - other.center.latitude) < epsilon &&
+        abs(center.longitude - other.center.longitude) < epsilon &&
+        abs(span.latitudeDelta - other.span.latitudeDelta) < epsilon &&
+        abs(span.longitudeDelta - other.span.longitudeDelta) < epsilon
+    }
+}
+
+#Preview {
     @Previewable @State var region = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 38.6270, longitude: -90.1994),
         span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
     )
-    
+
     let sampleAnnotations = [
         CustomMapAnnotation(
             id: "1",
@@ -266,48 +303,13 @@ struct FacilityMarkerView: View {
             color: .systemGreen,
             title: "Urgent Care Plus",
             subtitle: "15 min wait"
-        ),
-        CustomMapAnnotation(
-            id: "3",
-            coordinate: CLLocationCoordinate2D(latitude: 38.6070, longitude: -90.1594),
-            color: .systemOrange,
-            title: "St. Louis University Hospital",
-            subtitle: "32 min wait"
         )
     ]
-    
+
     return AppleMapsView(
         coordinateRegion: $region,
         annotations: sampleAnnotations,
-        mapStyle: .satellite,
-        showsUserLocation: true
-    )
-}
-
-#Preview("Apple Maps - Standard") {
-    @Previewable @State var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 38.6270, longitude: -90.1994),
-        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-    )
-    
-    return AppleMapsView(
-        coordinateRegion: $region,
-        annotations: [],
         mapStyle: .standard,
-        showsUserLocation: true
-    )
-}
-
-#Preview("Apple Maps - Hybrid") {
-    @Previewable @State var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 38.6270, longitude: -90.1994),
-        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-    )
-    
-    return AppleMapsView(
-        coordinateRegion: $region,
-        annotations: [],
-        mapStyle: .hybrid,
         showsUserLocation: true
     )
 }

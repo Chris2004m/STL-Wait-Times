@@ -26,7 +26,7 @@ class LocationService: NSObject, ObservableObject {
     override init() {
         super.init()
         setupLocationManager()
-        requestLocationPermissionIfNeeded()
+        startLocationUpdatesIfAuthorized()
     }
     
     private func setupLocationManager() {
@@ -55,20 +55,19 @@ class LocationService: NSObject, ObservableObject {
         }
     }
     
-    /// Automatically requests location permission if not yet determined
-    private func requestLocationPermissionIfNeeded() {
-        print("📍 DEBUG: requestLocationPermissionIfNeeded called")
+    /// Starts updates automatically only when permission is already granted.
+    /// Permission prompts are user-initiated from the location button in UI.
+    private func startLocationUpdatesIfAuthorized() {
+        print("📍 DEBUG: startLocationUpdatesIfAuthorized called")
         print("📍 DEBUG: authorizationStatus: \(authorizationStatus.rawValue), isLocationEnabled: \(isLocationEnabled), currentLocation: \(currentLocation?.description ?? "nil")")
-        
-        if authorizationStatus == .notDetermined {
-            print("📍 DEBUG: Authorization not determined, requesting permission")
-            requestLocationPermission()
-        } else if isLocationEnabled && currentLocation == nil {
-            print("📍 DEBUG: Location enabled and no current location, starting updates")
-            startLocationUpdates()
-        } else {
-            print("📍 DEBUG: Not starting location updates - enabled: \(isLocationEnabled), hasLocation: \(currentLocation != nil)")
+
+        guard isLocationEnabled, currentLocation == nil else {
+            print("📍 DEBUG: Not auto-starting updates - enabled: \(isLocationEnabled), hasLocation: \(currentLocation != nil)")
+            return
         }
+
+        print("📍 DEBUG: Location already authorized, starting updates")
+        startLocationUpdates()
     }
     
     /// Starts location updates

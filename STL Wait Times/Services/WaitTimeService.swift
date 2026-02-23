@@ -18,6 +18,7 @@ public class WaitTimeService: ObservableObject {
     // Circuit breaker state for each API endpoint
     private var circuitBreakerState: [String: CircuitBreakerState] = [:]
     private var lastApiCall: [String: Date] = [:]
+    private let apiStateQueue = DispatchQueue(label: "com.milton.stlwaittimes.apistate")
     private let minimumApiInterval: TimeInterval = 2.0 // Rate limiting: max 1 call per 2 seconds per endpoint
     
     private struct CircuitBreakerState {
@@ -201,7 +202,7 @@ public class WaitTimeService: ObservableObject {
         }.resume()
     }
     
-    /// Fetches wait times for all Total Access facilities in batches with smart error handling
+    /// Fetches wait times for all refreshable facilities in batches with smart error handling
     func fetchAllWaitTimes(facilities: [Facility], completion: ((Result<Void, WaitTimeError>) -> Void)? = nil) {
         print("🔍 DEBUG: fetchAllWaitTimes called with \(facilities.count) facilities")
         for (index, facility) in facilities.enumerated() {
@@ -216,19 +217,28 @@ public class WaitTimeService: ObservableObject {
             }
         }
         
-        // Include ALL Total Access facilities (both API and web-scraping only)
-        let totalAccessFacilities = facilities.filter { 
-            $0.id.hasPrefix("total-access") || $0.apiEndpoint != nil 
+        // Keep refresh coverage broad so facilities are not silently skipped.
+        let refreshableFacilities = facilities.filter {
+            $0.apiEndpoint != nil || $0.websiteURL != nil || $0.cmsAverageWaitMinutes != nil
         }
-        print("🔍 DEBUG: Processing \(totalAccessFacilities.count) Total Access facilities (API + web scraping)")
+        print("🔍 DEBUG: Processing \(refreshableFacilities.count) refreshable facilities (API/Web/CMS)")
         
-        for facility in totalAccessFacilities {
-            let method = facility.apiEndpoint != nil ? "API+Web" : "Web Only"
+        for facility in refreshableFacilities {
+            let method: String
+            if facility.apiEndpoint != nil && facility.websiteURL != nil {
+                method = "API+Web"
+            } else if facility.apiEndpoint != nil {
+                method = "API"
+            } else if facility.websiteURL != nil {
+                method = "Web"
+            } else {
+                method = "CMS"
+            }
             print("   - \(facility.name): \(method)")
         }
         
-        guard !totalAccessFacilities.isEmpty else { 
-            print("❌ No Total Access facilities found")
+        guard !refreshableFacilities.isEmpty else {
+            print("❌ No refreshable facilities found")
             completion?(.failure(.noData))
             return 
         }
@@ -236,12 +246,12 @@ public class WaitTimeService: ObservableObject {
         isLoading = true
         error = nil
         
-        print("🚀 Starting batch fetch for \(totalAccessFacilities.count) Total Access locations...")
+        print("🚀 Starting batch fetch for \(refreshableFacilities.count) facilities...")
         
         // Process facilities in smart batches to avoid overwhelming the server
         let batchSize = 10
-        let batches = stride(from: 0, to: totalAccessFacilities.count, by: batchSize).map {
-            Array(totalAccessFacilities[$0..<min($0 + batchSize, totalAccessFacilities.count)])
+        let batches = stride(from: 0, to: refreshableFacilities.count, by: batchSize).map {
+            Array(refreshableFacilities[$0..<min($0 + batchSize, refreshableFacilities.count)])
         }
         
         let batchPublisher = Publishers.Sequence(sequence: batches.enumerated())
@@ -1898,21 +1908,27 @@ public class WaitTimeService: ObservableObject {
     }
     
     private func recordApiAttempt(for apiEndpoint: String) {
-        lastApiCall[apiEndpoint] = Date()
+        apiStateQueue.sync {
+            lastApiCall[apiEndpoint] = Date()
+        }
     }
     
     private func recordApiSuccess(for apiEndpoint: String) {
-        var state = circuitBreakerState[apiEndpoint, default: CircuitBreakerState()]
-        state.recordSuccess()
-        circuitBreakerState[apiEndpoint] = state
-        lastApiCall[apiEndpoint] = Date()
+        apiStateQueue.sync {
+            var state = circuitBreakerState[apiEndpoint, default: CircuitBreakerState()]
+            state.recordSuccess()
+            circuitBreakerState[apiEndpoint] = state
+            lastApiCall[apiEndpoint] = Date()
+        }
     }
     
     private func recordApiFailure(for apiEndpoint: String) {
-        var state = circuitBreakerState[apiEndpoint, default: CircuitBreakerState()]
-        state.recordFailure()
-        circuitBreakerState[apiEndpoint] = state
-        lastApiCall[apiEndpoint] = Date()
+        apiStateQueue.sync {
+            var state = circuitBreakerState[apiEndpoint, default: CircuitBreakerState()]
+            state.recordFailure()
+            circuitBreakerState[apiEndpoint] = state
+            lastApiCall[apiEndpoint] = Date()
+        }
     }
     
     /// Helper method to extract minutes from time strings like "15 min" or "1 hour 30 min"
@@ -1935,23 +1951,25 @@ public class WaitTimeService: ObservableObject {
     
     /// Checks if we should make an API call based on circuit breaker and rate limiting
     private func shouldMakeApiCall(for apiEndpoint: String) -> Bool {
-        // Check circuit breaker
-        let breakerState = circuitBreakerState[apiEndpoint, default: CircuitBreakerState()]
-        if !breakerState.shouldAttemptCall {
-            print("🚫 Circuit breaker open for \(apiEndpoint)")
-            return false
-        }
-        
-        // Check rate limiting
-        if let lastCall = lastApiCall[apiEndpoint] {
-            let timeSinceLastCall = Date().timeIntervalSince(lastCall)
-            if timeSinceLastCall < minimumApiInterval {
-                print("🚫 Rate limited for \(apiEndpoint) - \(timeSinceLastCall)s since last call")
+        apiStateQueue.sync {
+            // Check circuit breaker
+            let breakerState = circuitBreakerState[apiEndpoint, default: CircuitBreakerState()]
+            if !breakerState.shouldAttemptCall {
+                print("🚫 Circuit breaker open for \(apiEndpoint)")
                 return false
             }
+            
+            // Check rate limiting
+            if let lastCall = lastApiCall[apiEndpoint] {
+                let timeSinceLastCall = Date().timeIntervalSince(lastCall)
+                if timeSinceLastCall < minimumApiInterval {
+                    print("🚫 Rate limited for \(apiEndpoint) - \(timeSinceLastCall)s since last call")
+                    return false
+                }
+            }
+            
+            return true
         }
-        
-        return true
     }
     
     /// Gets the best available wait time for a facility
