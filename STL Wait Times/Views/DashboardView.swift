@@ -96,7 +96,7 @@ struct DashboardView: View {
     
     
     var body: some View {
-        print("📱 DashboardView: Creating view body")
+        debugLog("📱 DashboardView: Creating view body")
         
         return ZStack {
             // Background Map - Apple Maps View
@@ -133,10 +133,10 @@ struct DashboardView: View {
             }
         }
         .onAppear {
-            print("✅ DashboardView: DashboardView appeared")
+            debugLog("✅ DashboardView: DashboardView appeared")
         }
         .onDisappear {
-            print("❌ DashboardView: DashboardView disappeared")
+            debugLog("❌ DashboardView: DashboardView disappeared")
         }
         // Center automatically when a new location arrives and the user requested it
         .onReceive(locationService.$currentLocation.compactMap { $0 }) { _ in
@@ -481,7 +481,7 @@ struct DashboardView: View {
             Spacer(minLength: 0)
         }
         .onAppear {
-            print("✅ DashboardView: Sheet content appeared - setting up initial data")
+            debugLog("✅ DashboardView: Sheet content appeared - setting up initial data")
             setupInitialMapRegion()
             fetchInitialWaitTimes()
         }
@@ -579,11 +579,11 @@ struct DashboardView: View {
         let facilitiesToRefresh = naFacilities
         
         guard !facilitiesToRefresh.isEmpty else {
-            print("🔄 No N/A facilities to refresh")
+            debugLog("🔄 No N/A facilities to refresh")
             return
         }
         
-        print("🔄 Global refresh: Refreshing \(facilitiesToRefresh.count) N/A facilities")
+        debugLog("🔄 Global refresh: Refreshing \(facilitiesToRefresh.count) N/A facilities")
         
         // Start refresh state
         isGlobalRefreshing = true
@@ -603,7 +603,7 @@ struct DashboardView: View {
             let successFeedback = UINotificationFeedbackGenerator()
             successFeedback.notificationOccurred(.success)
             
-            print("✅ Global refresh completed for N/A facilities")
+            debugLog("✅ Global refresh completed for N/A facilities")
         }
     }
     
@@ -620,7 +620,7 @@ struct DashboardView: View {
         
         // Example: Log scroll performance metrics
         #if DEBUG
-        print("📊 Scroll Position: offset=\(position.offset), visible=\(position.visibleRange)")
+        debugLog("📊 Scroll Position: offset=\(position.offset), visible=\(position.visibleRange)")
         #endif
     }
     
@@ -628,15 +628,15 @@ struct DashboardView: View {
     
     /// Set up initial map region - use user location if available, otherwise fallback to St. Louis
     private func setupInitialMapRegion() {
-        print("🗺️ DashboardView: Setting up initial map region")
+        debugLog("🗺️ DashboardView: Setting up initial map region")
         // Set the region based on current location availability
         region = locationService.getInitialMapRegion()
-        print("🗺️ DashboardView: Initial map region set to: \(region.center.latitude), \(region.center.longitude)")
+        debugLog("🗺️ DashboardView: Initial map region set to: \(region.center.latitude), \(region.center.longitude)")
     }
     
     /// Fetch initial wait times for all facilities
     private func fetchInitialWaitTimes() {
-        print("🚀 Fetching initial wait times for all facilities...")
+        debugLog("🚀 Fetching initial wait times for all facilities...")
         waitTimeService.fetchAllWaitTimes(facilities: Array(FacilityData.allFacilities))
     }
     
@@ -659,7 +659,7 @@ struct DashboardView: View {
     /// - Parameter coordinate: The tapped coordinate on the map
     private func handleMapTap(at coordinate: CLLocationCoordinate2D) {
         // Handle map tap interactions
-        print("Map tapped at: \(coordinate.latitude), \(coordinate.longitude)")
+        debugLog("Map tapped at: \(coordinate.latitude), \(coordinate.longitude)")
         
         // Reset sheet to peek state when tapping map
         withAnimation(.spring(response: DashboardConstants.springResponse, dampingFraction: DashboardConstants.springDamping)) {
@@ -754,11 +754,11 @@ struct DashboardView: View {
     /// Handle facility card tap to center map on facility location with building-level precision
     /// - Parameter facility: The tapped medical facility
     private func handleFacilityTap(_ facility: MedicalFacility) {
-        print("🏥 Facility tapped: \(facility.name)")
+        debugLog("🏥 Facility tapped: \(facility.name)")
         
         // Find the actual facility data with coordinates
         guard let realFacility = FacilityData.allFacilities.first(where: { $0.id == facility.id }) else {
-            print("❌ Could not find facility coordinates for \(facility.name)")
+            debugLog("❌ Could not find facility coordinates for \(facility.name)")
             return
         }
         
@@ -777,17 +777,17 @@ struct DashboardView: View {
             span: span
         )
         
-        print("🎯 Centering map on \(realFacility.name)")
-        print("   📍 Address: \(realFacility.address), \(realFacility.city), \(realFacility.state) \(realFacility.zipCode)")
-        print("   🗺️ Coordinates: \(realFacility.coordinate.latitude), \(realFacility.coordinate.longitude)")
-        print("   🔍 Zoom Level: Building-level precision (0.002° span = ~222m radius)")
+        debugLog("🎯 Centering map on \(realFacility.name)")
+        debugLog("   📍 Address: \(realFacility.address), \(realFacility.city), \(realFacility.state) \(realFacility.zipCode)")
+        debugLog("   🗺️ Coordinates: \(realFacility.coordinate.latitude), \(realFacility.coordinate.longitude)")
+        debugLog("   🔍 Zoom Level: Building-level precision (0.002° span = ~222m radius)")
         
         // Special logging for O'Fallon, IL facility to verify correct coordinates
         if facility.id == "total-access-15884" {
-            print("✅ TESTING: O'Fallon, IL facility detected!")
-            print("   🏢 Expected Address: 1103 Central Park Dr, O'Fallon, IL 62269")
-            print("   📍 Expected Coordinates: (38.5906, -89.9107)")
-            print("   🎯 Actual Coordinates: (\(realFacility.coordinate.latitude), \(realFacility.coordinate.longitude))")
+            debugLog("✅ TESTING: O'Fallon, IL facility detected!")
+            debugLog("   🏢 Expected Address: 1103 Central Park Dr, O'Fallon, IL 62269")
+            debugLog("   📍 Expected Coordinates: (38.5906, -89.9107)")
+            debugLog("   🎯 Actual Coordinates: (\(realFacility.coordinate.latitude), \(realFacility.coordinate.longitude))")
             
             // Verify coordinates match expected values
             let expectedLat = 38.5906
@@ -796,9 +796,9 @@ struct DashboardView: View {
             let lonMatch = abs(realFacility.coordinate.longitude - expectedLon) < 0.0001
             
             if latMatch && lonMatch {
-                print("   ✅ COORDINATES VERIFIED: Exact match with expected building location!")
+                debugLog("   ✅ COORDINATES VERIFIED: Exact match with expected building location!")
             } else {
-                print("   ❌ COORDINATE MISMATCH: Check FacilityData for correct coordinates")
+                debugLog("   ❌ COORDINATE MISMATCH: Check FacilityData for correct coordinates")
             }
         }
         
@@ -830,7 +830,7 @@ struct DashboardView: View {
         let announcement = "Map centered on \(facility.name) with building-level precision"
         UIAccessibility.post(notification: .announcement, argument: announcement)
         
-        print("✅ Building-level map centering animation started for \(facility.name)")
+        debugLog("✅ Building-level map centering animation started for \(facility.name)")
     }
     
     // MARK: - Map Annotations
@@ -865,7 +865,7 @@ struct DashboardView: View {
         let realFacilities = facilityData.compactMap { dashboardFacility -> Facility? in
             // Find the corresponding real facility data with authentic coordinates
             guard let realFacility = FacilityData.allFacilities.first(where: { $0.id == dashboardFacility.id }) else {
-                print("⚠️ Could not find real facility data for \(dashboardFacility.name)")
+                debugLog("⚠️ Could not find real facility data for \(dashboardFacility.name)")
                 return nil
             }
             return realFacility
@@ -895,9 +895,9 @@ struct DashboardView: View {
             }
         )
         
-        print("🗺️ Creating facility annotations for \(realFacilities.count) facilities with real coordinates")
+        debugLog("🗺️ Creating facility annotations for \(realFacilities.count) facilities with real coordinates")
         for facility in realFacilities.prefix(3) {
-            print("   - \(facility.name): \(facility.coordinate.latitude), \(facility.coordinate.longitude)")
+            debugLog("   - \(facility.name): \(facility.coordinate.latitude), \(facility.coordinate.longitude)")
         }
         
         return dataConverter.convertToMapAnnotations(
@@ -921,8 +921,8 @@ struct DashboardView: View {
         let realFacilities = sortedFacilities.map { facility in
             MedicalFacility(
                 id: facility.id,
-                name: getTAUCDisplayName(for: facility),
-                type: facility.facilityType == .emergencyDepartment ? "ER" : (facility.id.hasPrefix("total-access") ? "TAUC" : (facility.id.hasPrefix("mercy-gohealth") ? "Mercy" : (facility.id.hasPrefix("afc-") ? "AFC" : "UC"))),
+                name: getFacilityDisplayName(for: facility),
+                type: getFacilityTypeLabel(for: facility),
                 waitTime: getRealWaitTime(for: facility),
                 waitDetails: getWaitDetails(for: facility),
                 distance: calculateDistance(to: facility),
@@ -951,14 +951,14 @@ struct DashboardView: View {
                     return "\(waitTime.patientsInLine)"
                 } else {
                     // Use next_available_visit for most accurate real-time wait time
-                    print("🔍 DEBUG Wait Time Display for \(facility.name):")
-                    print("   - waitTime.waitMinutes: \(waitTime.waitMinutes) (averaged range)")
-                    print("   - waitTime.nextAvailableSlot: \(waitTime.nextAvailableSlot) (actual next slot)")
-                    print("   - waitTime.waitTimeRange: \(waitTime.waitTimeRange ?? "nil")")
+                    debugLog("🔍 DEBUG Wait Time Display for \(facility.name):")
+                    debugLog("   - waitTime.waitMinutes: \(waitTime.waitMinutes) (averaged range)")
+                    debugLog("   - waitTime.nextAvailableSlot: \(waitTime.nextAvailableSlot) (actual next slot)")
+                    debugLog("   - waitTime.waitTimeRange: \(waitTime.waitTimeRange ?? "nil")")
                     
                     // Prioritize nextAvailableSlot for most accurate wait time
                     let displayWaitTime = waitTime.nextAvailableSlot
-                    print("   → Displaying: \(displayWaitTime) minutes (from nextAvailableSlot)")
+                    debugLog("   → Displaying: \(displayWaitTime) minutes (from nextAvailableSlot)")
                     return "\(displayWaitTime)"
                 }
             } else {
@@ -991,21 +991,38 @@ struct DashboardView: View {
         }
     }
     
-    /// Get display name for TAUC facilities (extract location) or use full name for others
-    private func getTAUCDisplayName(for facility: Facility) -> String {
-        if facility.id.hasPrefix("total-access") {
-            // Extract location from "Total Access Urgent Care - Location" format
-            let fullName = facility.name
-            if let dashIndex = fullName.range(of: " - ") {
-                let locationName = String(fullName[dashIndex.upperBound...])
-                return locationName
-            }
-            // Fallback to full name if format doesn't match
-            return facility.name
+    private func getFacilityTypeLabel(for facility: Facility) -> String {
+        if facility.facilityType == .emergencyDepartment {
+            return "ER"
+        } else if facility.id.hasPrefix("total-access") {
+            return "TAUC"
+        } else if facility.id.hasPrefix("mercy-gohealth") {
+            return "Mercy"
+        } else if facility.id.hasPrefix("st-lukes") {
+            return "St. Luke's"
+        } else if facility.id.hasPrefix("afc-") {
+            return "AFC"
         } else {
-            // For non-TAUC facilities, use the full name
+            return "UC"
+        }
+    }
+
+    /// Use location-focused names in dashboard cards for brand-prefixed networks.
+    private func getFacilityDisplayName(for facility: Facility) -> String {
+        if facility.id.hasPrefix("total-access") || facility.id.hasPrefix("st-lukes") {
+            return extractLocationName(from: facility.name)
+        } else {
             return facility.name
         }
+    }
+
+    private func extractLocationName(from fullName: String) -> String {
+        guard let dashRange = fullName.range(of: " - ", options: .backwards) else {
+            return fullName
+        }
+
+        let locationName = fullName[dashRange.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+        return locationName.isEmpty ? fullName : String(locationName)
     }
     
     /// Calculate display distance to a facility.
@@ -1043,7 +1060,7 @@ struct DashboardView: View {
                 if let minWait = extractNumber(from: trimmedComponents[0]),
                    let maxWait = extractNumber(from: trimmedComponents[1]) {
                     let average = (minWait + maxWait) / 2
-                    print("📊 Parsed wait time range '\(range)' → \(minWait)-\(maxWait) → avg: \(average)")
+                    debugLog("📊 Parsed wait time range '\(range)' → \(minWait)-\(maxWait) → avg: \(average)")
                     return average
                 }
             }
@@ -1051,11 +1068,11 @@ struct DashboardView: View {
         
         // If parsing fails, try to extract a single number
         if let singleNumber = extractNumber(from: cleanRange) {
-            print("📊 Parsed single wait time '\(range)' → \(singleNumber)")
+            debugLog("📊 Parsed single wait time '\(range)' → \(singleNumber)")
             return singleNumber
         }
         
-        print("⚠️ Failed to parse wait time range: '\(range)' - returning -1 to indicate parsing failure")
+        debugLog("⚠️ Failed to parse wait time range: '\(range)' - returning -1 to indicate parsing failure")
         return -1 // Return -1 to indicate parsing failure
     }
     
@@ -1251,7 +1268,7 @@ struct FacilityCard: View {
                 switch result {
                 case .success():
                     // Navigation started successfully - isNavigating will be set by the receiver
-                    print("✅ Navigation started for facility: \(self.facility.name)")
+                    debugLog("✅ Navigation started for facility: \(self.facility.name)")
                     
                     // Clear navigation state after a short delay since Maps opened
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
@@ -1272,7 +1289,7 @@ struct FacilityCard: View {
     private func convertToFacilityModel() -> Facility {
         // Look up the real facility from FacilityData using the facility ID
         guard let realFacility = FacilityData.allFacilities.first(where: { $0.id == facility.id }) else {
-            print("⚠️ Navigation: Could not find facility \(facility.id) in FacilityData, using fallback")
+            debugLog("⚠️ Navigation: Could not find facility \(facility.id) in FacilityData, using fallback")
             
             // Fallback: Create a facility with available data from MedicalFacility
             // This should only happen if there's a data inconsistency
@@ -1290,9 +1307,9 @@ struct FacilityCard: View {
             )
         }
         
-        print("✅ Navigation: Found real facility data for \(realFacility.name)")
-        print("   📍 Address: \(realFacility.address), \(realFacility.city), \(realFacility.state) \(realFacility.zipCode)")
-        print("   🗺️ Coordinates: \(realFacility.coordinate.latitude), \(realFacility.coordinate.longitude)")
+        debugLog("✅ Navigation: Found real facility data for \(realFacility.name)")
+        debugLog("   📍 Address: \(realFacility.address), \(realFacility.city), \(realFacility.state) \(realFacility.zipCode)")
+        debugLog("   🗺️ Coordinates: \(realFacility.coordinate.latitude), \(realFacility.coordinate.longitude)")
         
         // Return the real facility with all authentic data
         return realFacility

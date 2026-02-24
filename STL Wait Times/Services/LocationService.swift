@@ -58,29 +58,29 @@ class LocationService: NSObject, ObservableObject {
     /// Starts updates automatically only when permission is already granted.
     /// Permission prompts are user-initiated from the location button in UI.
     private func startLocationUpdatesIfAuthorized() {
-        print("📍 DEBUG: startLocationUpdatesIfAuthorized called")
-        print("📍 DEBUG: authorizationStatus: \(authorizationStatus.rawValue), isLocationEnabled: \(isLocationEnabled), currentLocation: \(currentLocation?.description ?? "nil")")
+        debugLog("📍 DEBUG: startLocationUpdatesIfAuthorized called")
+        debugLog("📍 DEBUG: authorizationStatus: \(authorizationStatus.rawValue), isLocationEnabled: \(isLocationEnabled), hasLocation: \(currentLocation != nil)")
 
         guard isLocationEnabled, currentLocation == nil else {
-            print("📍 DEBUG: Not auto-starting updates - enabled: \(isLocationEnabled), hasLocation: \(currentLocation != nil)")
+            debugLog("📍 DEBUG: Not auto-starting updates - enabled: \(isLocationEnabled), hasLocation: \(currentLocation != nil)")
             return
         }
 
-        print("📍 DEBUG: Location already authorized, starting updates")
+        debugLog("📍 DEBUG: Location already authorized, starting updates")
         startLocationUpdates()
     }
     
     /// Starts location updates
     private func startLocationUpdates() {
-        print("📍 DEBUG: startLocationUpdates called - isLocationEnabled: \(isLocationEnabled)")
+        debugLog("📍 DEBUG: startLocationUpdates called - isLocationEnabled: \(isLocationEnabled)")
         guard isLocationEnabled else { 
-            print("📍 DEBUG: Location not enabled, returning early")
+            debugLog("📍 DEBUG: Location not enabled, returning early")
             return 
         }
-        print("📍 DEBUG: Starting location manager updates...")
+        debugLog("📍 DEBUG: Starting location manager updates...")
         isLoadingLocation = true
         locationManager.startUpdatingLocation()
-        print("📍 DEBUG: locationManager.startUpdatingLocation() called")
+        debugLog("📍 DEBUG: locationManager.startUpdatingLocation() called")
     }
     
     /// Stops location updates
@@ -219,13 +219,13 @@ class LocationService: NSObject, ObservableObject {
 // MARK: - CLLocationManagerDelegate
 extension LocationService: CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        print("📍 DEBUG: Location update received - \(locations.count) locations")
+        debugLog("📍 DEBUG: Location update received - \(locations.count) locations")
         guard let location = locations.last else { 
-            print("📍 DEBUG: No valid location in update")
+            debugLog("📍 DEBUG: No valid location in update")
             return 
         }
         
-        print("📍 DEBUG: New location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+        debugLog("📍 DEBUG: New location received")
         currentLocation = location
         locationError = nil
         isLoadingLocation = false
@@ -262,17 +262,17 @@ extension LocationService: CLLocationManagerDelegate {
     }
     
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
-        print("📍 DEBUG: Authorization status changed to: \(status.rawValue) (\(authorizationStatusString(status)))")
+        debugLog("📍 DEBUG: Authorization status changed to: \(status.rawValue) (\(authorizationStatusString(status)))")
         authorizationStatus = status
         isLocationEnabled = status == .authorizedWhenInUse || status == .authorizedAlways
         
-        print("📍 DEBUG: Location enabled: \(isLocationEnabled)")
+        debugLog("📍 DEBUG: Location enabled: \(isLocationEnabled)")
         
         if isLocationEnabled {
-            print("📍 DEBUG: Starting location updates due to authorization change")
+            debugLog("📍 DEBUG: Starting location updates due to authorization change")
             startLocationUpdates()
         } else {
-            print("📍 DEBUG: Stopping location updates due to authorization change")
+            debugLog("📍 DEBUG: Stopping location updates due to authorization change")
             stopLocationUpdates()
             currentLocation = nil
             hasInitialLocation = false
@@ -280,7 +280,7 @@ extension LocationService: CLLocationManagerDelegate {
             // Set appropriate error for denied states
             if status == .denied || status == .restricted {
                 locationError = .permissionDenied
-                print("📍 DEBUG: Location permission denied or restricted")
+                debugLog("📍 DEBUG: Location permission denied or restricted")
             }
         }
     }

@@ -38,14 +38,14 @@ class BackgroundTaskService: ObservableObject {
         
         do {
             try BGTaskScheduler.shared.submit(request)
-            print("✅ BackgroundTaskService: Background refresh scheduled")
+            debugLog("✅ BackgroundTaskService: Background refresh scheduled")
         } catch {
-            print("❌ BackgroundTaskService: Failed to schedule background refresh: \(error)")
+            debugLog("❌ BackgroundTaskService: Failed to schedule background refresh: \(error)")
         }
     }
     
     private func handleBackgroundRefresh(task: BGAppRefreshTask) {
-        print("🔄 BackgroundTaskService: Handling background refresh")
+        debugLog("🔄 BackgroundTaskService: Handling background refresh")
         
         // Schedule the next refresh
         scheduleBackgroundRefresh()
@@ -55,7 +55,7 @@ class BackgroundTaskService: ObservableObject {
         
         task.expirationHandler = {
             if !didCompleteTask {
-                print("⏰ BackgroundTaskService: Background task expired")
+                debugLog("⏰ BackgroundTaskService: Background task expired")
                 didCompleteTask = true
                 task.setTaskCompleted(success: false)
             }
@@ -66,7 +66,7 @@ class BackgroundTaskService: ObservableObject {
         }
         
         guard !totalAccessFacilities.isEmpty else {
-            print("❌ BackgroundTaskService: No facilities to refresh")
+            debugLog("❌ BackgroundTaskService: No facilities to refresh")
             if !didCompleteTask {
                 didCompleteTask = true
                 task.setTaskCompleted(success: false)
@@ -80,10 +80,10 @@ class BackgroundTaskService: ObservableObject {
             
             switch result {
             case .success:
-                print("✅ BackgroundTaskService: Background refresh completed")
+                debugLog("✅ BackgroundTaskService: Background refresh completed")
                 task.setTaskCompleted(success: true)
             case .failure(let error):
-                print("❌ BackgroundTaskService: Refresh failed with error: \(error.localizedDescription)")
+                debugLog("❌ BackgroundTaskService: Refresh failed with error: \(error.localizedDescription)")
                 task.setTaskCompleted(success: false)
             }
         }

@@ -350,7 +350,9 @@ struct FacilityDetailView: View {
     }
     
     private func makePhoneCall() {
-        guard let url = URL(string: "tel://\(facility.phone)") else { return }
+        let sanitizedNumber = facility.phone.filter { $0.isNumber || $0 == "+" }
+        guard !sanitizedNumber.isEmpty,
+              let url = URL(string: "tel://\(sanitizedNumber)") else { return }
         UIApplication.shared.open(url)
     }
 }

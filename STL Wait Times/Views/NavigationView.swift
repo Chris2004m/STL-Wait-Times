@@ -220,7 +220,7 @@ struct TurnByTurnNavigationView: View {
                     }
                 }
             } catch {
-                print("❌ Navigation setup failed: \(error)")
+                debugLog("❌ Navigation setup failed: \(error)")
                 onExit()
             }
         }

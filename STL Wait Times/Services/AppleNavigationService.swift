@@ -108,7 +108,7 @@ class AppleNavigationService: NSObject, ObservableObject {
         locationManager?.startUpdatingLocation()
         locationManager?.startUpdatingHeading()
         
-        print("🧭 Navigation started with \(route.steps.count) steps")
+        debugLog("🧭 Navigation started with \(route.steps.count) steps")
     }
     
     /// Stop navigation
@@ -123,7 +123,7 @@ class AppleNavigationService: NSObject, ObservableObject {
         locationManager?.stopUpdatingLocation()
         locationManager?.stopUpdatingHeading()
         
-        print("🧭 Navigation stopped")
+        debugLog("🧭 Navigation stopped")
     }
     
     // MARK: - Route Progress
@@ -168,22 +168,18 @@ class AppleNavigationService: NSObject, ObservableObject {
         currentStepIndex += 1
         currentStep = route.steps[currentStepIndex]
         
-        print("🧭 Advanced to step \(currentStepIndex): \(currentStep?.instructions ?? "")")
+        debugLog("🧭 Advanced to step \(currentStepIndex): \(currentStep?.instructions ?? "")")
     }
     
     /// Called when destination is reached
     private func destinationReached() {
-        print("🎉 Destination reached!")
+        debugLog("🎉 Destination reached!")
         stopNavigation()
     }
     
     // MARK: - Distance Calculations
     
     private func calculateRemainingDistance(from location: CLLocation, on route: MKRoute) -> CLLocationDistance {
-        // Find closest point on route
-        let userPoint = MKMapPoint(location.coordinate)
-        let polyline = route.polyline
-        
         var remainingDist: CLLocationDistance = 0
         
         // Calculate from current position to end
@@ -212,13 +208,13 @@ class AppleNavigationService: NSObject, ObservableObject {
         
         // If more than 50 meters off route, recalculate
         if closestDistance > 50 {
-            print("🔄 User off route, recalculating...")
+            debugLog("🔄 User off route, recalculating...")
             
             do {
                 let newRoute = try await calculateRoute(to: destination)
                 startNavigation(route: newRoute, destination: destination)
             } catch {
-                print("❌ Reroute failed: \(error)")
+                debugLog("❌ Reroute failed: \(error)")
             }
         }
     }
@@ -255,6 +251,7 @@ class AppleNavigationService: NSObject, ObservableObject {
 
 // MARK: - CLLocationManagerDelegate
 
+@MainActor
 extension AppleNavigationService: CLLocationManagerDelegate {
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {

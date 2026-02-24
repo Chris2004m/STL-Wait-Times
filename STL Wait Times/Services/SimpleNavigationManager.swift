@@ -65,9 +65,7 @@ class SimpleNavigationManager: ObservableObject {
         completion: @escaping (Result<Void, NavigationError>) -> Void
     ) {
         
-        print("🗺️ Navigation: Starting navigation to \(facility.name)")
-        print("   📍 Address: \(facility.address), \(facility.city), \(facility.state) \(facility.zipCode)")
-        print("   🎯 Coordinates: \(facility.coordinate.latitude), \(facility.coordinate.longitude)")
+        debugLog("🗺️ Navigation: Starting navigation to \(facility.name)")
         
         // Use coordinate-first placemark so Apple Maps resolves canonical address details.
         let placemark = MKPlacemark(coordinate: facility.coordinate)
@@ -78,10 +76,7 @@ class SimpleNavigationManager: ObservableObject {
         // Format the full address for the accessibility announcement
         let fullAddress = "\(facility.address), \(facility.city), \(facility.state) \(facility.zipCode)"
         
-        print("🚀 Navigation: Opening Apple Maps with:")
-        print("   🏥 Name: \(facility.name)")
-        print("   📮 Full Address: \(fullAddress)")
-        print("   📍 Coordinates: \(facility.coordinate.latitude), \(facility.coordinate.longitude)")
+        debugLog("🚀 Navigation: Opening Apple Maps route handoff")
         
         // Open Apple Maps directly in directions mode from current location.
         let launchOptions: [String: Any] = [

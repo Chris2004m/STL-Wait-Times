@@ -109,25 +109,25 @@ class FacilityListViewModel: ObservableObject {
         timer.resume()
         refreshTimer = timer
         
-        print("✅ Background auto-refresh timer started (every \(Int(autoRefreshInterval))s)")
+        debugLog("✅ Background auto-refresh timer started (every \(Int(autoRefreshInterval))s)")
     }
     
     // MARK: - Data Loading
     func loadFacilities() {
-        print("🚗 DEBUG: loadFacilities() starting")
+        debugLog("🚗 DEBUG: loadFacilities() starting")
         // Load all facilities from static data
         facilities = FacilityData.allFacilities
-        print("🚗 DEBUG: Loaded \(facilities.count) facilities from FacilityData.allFacilities")
+        debugLog("🚗 DEBUG: Loaded \(facilities.count) facilities from FacilityData.allFacilities")
         
         // Request location permission
         locationService.requestLocationPermission()
         
         // Smart launch: Only fetch if we don't have recent data
         if shouldFetchOnAppLaunch() {
-            print("🚀 App launch: Fetching fresh data (no recent cache)")
+            debugLog("🚀 App launch: Fetching fresh data (no recent cache)")
             refreshWaitTimes()
         } else {
-            print("🚀 App launch: Using cached data, background refresh will update")
+            debugLog("🚀 App launch: Using cached data, background refresh will update")
             // Still sort and filter with existing data
             sortFacilities()
         }
@@ -141,11 +141,11 @@ class FacilityListViewModel: ObservableObject {
     
     /// Manual refresh triggered by user (pull-to-refresh, etc.)
     func refreshWaitTimes() {
-        print("🔄 Manual refresh requested")
+        debugLog("🔄 Manual refresh requested")
         
         // Don't trigger new API calls if auto-refresh is already running
         if isAutoRefreshing {
-            print("🔄 Auto-refresh in progress, showing latest data")
+            debugLog("🔄 Auto-refresh in progress, showing latest data")
             // Just refresh the UI with current data
             sortFacilities()
             return
@@ -157,7 +157,7 @@ class FacilityListViewModel: ObservableObject {
     /// Background auto-refresh that runs every 2 minutes
     private func performAutoRefresh() {
         guard !isAutoRefreshing else {
-            print("🔄 Auto-refresh already in progress, skipping")
+            debugLog("🔄 Auto-refresh already in progress, skipping")
             return
         }
         
@@ -165,12 +165,12 @@ class FacilityListViewModel: ObservableObject {
         if let lastRefresh = lastAutoRefreshTime {
             let timeSinceLastRefresh = Date().timeIntervalSince(lastRefresh)
             if timeSinceLastRefresh < autoRefreshInterval * 0.8 { // 80% of interval
-                print("🔄 Auto-refresh skipped - too soon since last refresh (\(Int(timeSinceLastRefresh))s ago)")
+                debugLog("🔄 Auto-refresh skipped - too soon since last refresh (\(Int(timeSinceLastRefresh))s ago)")
                 return
             }
         }
         
-        print("🔄 Background auto-refresh triggered")
+        debugLog("🔄 Background auto-refresh triggered")
         performDataRefresh(isManual: false)
     }
     
@@ -178,7 +178,7 @@ class FacilityListViewModel: ObservableObject {
     private func shouldFetchOnAppLaunch() -> Bool {
         // If we have no cached data at all, definitely fetch
         if waitTimes.isEmpty {
-            print("📊 App launch: No cached data available")
+            debugLog("📊 App launch: No cached data available")
             return true
         }
         
@@ -194,7 +194,7 @@ class FacilityListViewModel: ObservableObject {
         // If we have data for less than 80% of facilities, fetch fresh data
         let dataCompleteness = Double(facilitiesWithData.count) / Double(totalAccessFacilities.count)
         if dataCompleteness < 0.8 {
-            print("📊 App launch: Incomplete data (\(facilitiesWithData.count)/\(totalAccessFacilities.count) facilities)")
+            debugLog("📊 App launch: Incomplete data (\(facilitiesWithData.count)/\(totalAccessFacilities.count) facilities)")
             return true
         }
         
@@ -207,58 +207,58 @@ class FacilityListViewModel: ObservableObject {
         let maxAcceptableAge: TimeInterval = 300 // 5 minutes
         
         if dataAge > maxAcceptableAge {
-            print("📊 App launch: Data too old (\(Int(dataAge))s ago, max \(Int(maxAcceptableAge))s)")
+            debugLog("📊 App launch: Data too old (\(Int(dataAge))s ago, max \(Int(maxAcceptableAge))s)")
             return true
         }
         
-        print("📊 App launch: Recent data available (\(Int(dataAge))s old, \(Int(dataCompleteness * 100))% complete)")
+        debugLog("📊 App launch: Recent data available (\(Int(dataAge))s old, \(Int(dataCompleteness * 100))% complete)")
         return false
     }
     
     /// Core refresh logic used by both manual and auto-refresh
     private func performDataRefresh(isManual: Bool) {
         guard !isAutoRefreshing else {
-            print("🔄 Refresh already in progress")
+            debugLog("🔄 Refresh already in progress")
             return
         }
         
         isAutoRefreshing = true
         lastAutoRefreshTime = Date()
         
-        print("🔄 DEBUG: performDataRefresh called (manual: \(isManual))")
-        print("🔄 DEBUG: FacilityData.allFacilities count: \(FacilityData.allFacilities.count)")
+        debugLog("🔄 DEBUG: performDataRefresh called (manual: \(isManual))")
+        debugLog("🔄 DEBUG: FacilityData.allFacilities count: \(FacilityData.allFacilities.count)")
         
         // Include ALL Total Access facilities for refresh (both API and web scraping)
         let totalAccessFacilities = FacilityData.allFacilities.filter { 
             $0.id.hasPrefix("total-access") || $0.apiEndpoint != nil 
         }
         
-        print("🔄 Refreshing \(totalAccessFacilities.count) facilities (including web scraping)")
-        print("🔄 DEBUG: After filtering, facility IDs: \(totalAccessFacilities.map { $0.id })")
+        debugLog("🔄 Refreshing \(totalAccessFacilities.count) facilities (including web scraping)")
+        debugLog("🔄 DEBUG: After filtering, facility IDs: \(totalAccessFacilities.map { $0.id })")
         
         for facility in totalAccessFacilities {
-            print("   - \(facility.name): \(facility.apiEndpoint != nil ? "API+Web" : "Web Only")")
+            debugLog("   - \(facility.name): \(facility.apiEndpoint != nil ? "API+Web" : "Web Only")")
         }
         
         if !totalAccessFacilities.isEmpty {
             waitTimeService.fetchAllWaitTimes(facilities: totalAccessFacilities)
         } else {
-            print("❌ No Total Access facilities found for refresh!")
+            debugLog("❌ No Total Access facilities found for refresh!")
             isAutoRefreshing = false
         }
     }
     
     // MARK: - Filtering and Sorting
     func applyFilter() {
-        print("🔄 DEBUG: applyFilter() called - selectedFacilityType: \(selectedFacilityType.rawValue)")
+        debugLog("🔄 DEBUG: applyFilter() called - selectedFacilityType: \(selectedFacilityType.rawValue)")
         
         switch selectedFacilityType {
         case .emergencyDepartment:
             facilities = FacilityData.emergencyDepartments
-            print("🔄 DEBUG: Loaded \(facilities.count) emergency departments")
+            debugLog("🔄 DEBUG: Loaded \(facilities.count) emergency departments")
         case .urgentCare:
             facilities = FacilityData.urgentCareCenters
-            print("🔄 DEBUG: Loaded \(facilities.count) urgent care centers")
+            debugLog("🔄 DEBUG: Loaded \(facilities.count) urgent care centers")
         }
         
         sortFacilities()
@@ -293,28 +293,28 @@ class FacilityListViewModel: ObservableObject {
     
     func waitTimeDisplayString(for facility: Facility) -> String {
         guard let waitTime = waitTime(for: facility) else {
-            print("🔍 DEBUG: \(facility.name) has no wait time data available")
+            debugLog("🔍 DEBUG: \(facility.name) has no wait time data available")
             return "No data"
         }
         
         // For Total Access urgent care facilities, show patients in line instead of wait time
         let isTotalAccess = facility.name.contains("Total Access") || facility.id.hasPrefix("total-access")
         
-        print("🔍 DEBUG: \(facility.name)")
-        print("   - isTotalAccess: \(isTotalAccess)")
-        print("   - waitTime.status: \(waitTime.status)")
-        print("   - waitTime.patientsInLine: \(waitTime.patientsInLine)")
-        print("   - waitTime.displayText: \(waitTime.displayText)")
-        print("   - waitTime.patientDisplayText: \(waitTime.patientDisplayText)")
+        debugLog("🔍 DEBUG: \(facility.name)")
+        debugLog("   - isTotalAccess: \(isTotalAccess)")
+        debugLog("   - waitTime.status: \(waitTime.status)")
+        debugLog("   - waitTime.patientsInLine: \(waitTime.patientsInLine)")
+        debugLog("   - waitTime.displayText: \(waitTime.displayText)")
+        debugLog("   - waitTime.patientDisplayText: \(waitTime.patientDisplayText)")
         
         if waitTime.isStale {
             let displayText = isTotalAccess ? waitTime.patientDisplayText : waitTime.displayText
-            print("   - FINAL (stale): \(displayText) (stale)")
+            debugLog("   - FINAL (stale): \(displayText) (stale)")
             return "\(displayText) (stale)"
         }
         
         let finalText = isTotalAccess ? waitTime.patientDisplayText : waitTime.displayText
-        print("   - FINAL: \(finalText)")
+        debugLog("   - FINAL: \(finalText)")
         return finalText
     }
     
@@ -361,10 +361,10 @@ class FacilityListViewModel: ObservableObject {
     
     /// Call this when the view appears to ensure driving times are calculated
     func onViewAppear() {
-        print("🚗 DEBUG: onViewAppear() called")
-        print("🚗 DEBUG: Current location in onViewAppear: \(locationService.currentLocation?.description ?? "nil")")
-        print("🚗 DEBUG: Facilities count in onViewAppear: \(facilities.count)")
-        print("🚗 DEBUG: Selected facility type in onViewAppear: \(selectedFacilityType.rawValue)")
+        debugLog("🚗 DEBUG: onViewAppear() called")
+        debugLog("🚗 DEBUG: Current location in onViewAppear: \(locationService.currentLocation?.description ?? "nil")")
+        debugLog("🚗 DEBUG: Facilities count in onViewAppear: \(facilities.count)")
+        debugLog("🚗 DEBUG: Selected facility type in onViewAppear: \(selectedFacilityType.rawValue)")
         
         // View appeared - location-based functionality will work automatically
     }
@@ -373,7 +373,7 @@ class FacilityListViewModel: ObservableObject {
     
     /// Refreshes wait time for a single facility
     func refreshSingleFacility(_ facility: Facility) {
-        print("🔄 Manual refresh requested for \(facility.name)")
+        debugLog("🔄 Manual refresh requested for \(facility.name)")
         waitTimeService.fetchSingleFacilityWaitTime(facility: facility)
     }
     

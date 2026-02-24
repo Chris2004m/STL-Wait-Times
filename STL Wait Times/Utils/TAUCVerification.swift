@@ -89,7 +89,7 @@ class TAUCVerification {
             guard let data = data,
                   let htmlString = String(data: data, encoding: .utf8),
                   error == nil else {
-                print("❌ Error fetching website data: \(error?.localizedDescription ?? "Unknown error")")
+                debugLog("❌ Error fetching website data: \(error?.localizedDescription ?? "Unknown error")")
                 completion(nil)
                 return
             }
@@ -144,8 +144,8 @@ class TAUCVerification {
     
     /// Print verification results in a formatted way
     static func printResults(_ results: [VerificationResult]) {
-        print("\n📊 TAUC Patient Count Verification Results")
-        print("=" * 50)
+        debugLog("\n📊 TAUC Patient Count Verification Results")
+        debugLog("=" * 50)
         
         var matchCount = 0
         var totalCount = 0
@@ -158,19 +158,19 @@ class TAUCVerification {
             let apiCount = result.apiPatientCount?.description ?? "N/A"
             let webCount = result.websitePatientCount?.description ?? "N/A"
             
-            print("\n\(status) - \(result.facilityName)")
-            print("  API: \(apiCount) patients")
-            print("  Website: \(webCount) patients")
+            debugLog("\n\(status) - \(result.facilityName)")
+            debugLog("  API: \(apiCount) patients")
+            debugLog("  Website: \(webCount) patients")
             
             if let error = result.error {
-                print("  Error: \(error)")
+                debugLog("  Error: \(error)")
             }
         }
         
-        print("\n" + "=" * 50)
-        print("📈 Summary: \(matchCount)/\(totalCount) facilities match")
+        debugLog("\n" + "=" * 50)
+        debugLog("📈 Summary: \(matchCount)/\(totalCount) facilities match")
         let percentage = totalCount > 0 ? (Double(matchCount) / Double(totalCount)) * 100 : 0
-        print("📊 Accuracy: \(String(format: "%.1f", percentage))%")
+        debugLog("📊 Accuracy: \(String(format: "%.1f", percentage))%")
     }
 }
 

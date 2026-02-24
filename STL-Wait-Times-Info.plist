@@ -2,33 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Location permissions for navigation -->
-    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>This app needs location access to show nearby medical facilities and provide turn-by-turn navigation to selected facilities.</string>
-    
+    <!-- Location permission for nearby facility discovery and sorting -->
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>This app needs location access to show nearby medical facilities and provide turn-by-turn navigation to selected facilities.</string>
-    
-    <key>NSLocationTemporaryUsageDescriptionDictionary</key>
-    <dict>
-        <key>navigation</key>
-        <string>This app needs temporary location access to provide navigation guidance to your selected medical facility.</string>
-    </dict>
-    
-    <!-- Microphone permission for voice instructions -->
-    <key>NSMicrophoneUsageDescription</key>
-    <string>This app uses microphone access to provide voice-guided navigation instructions.</string>
-    
-    <!-- Background modes for navigation -->
-    <key>UIBackgroundModes</key>
-    <array>
-        <string>location</string>
-        <string>audio</string>
-    </array>
-    
-    <!-- Speech recognition for voice commands (optional) -->
-    <key>NSSpeechRecognitionUsageDescription</key>
-    <string>This app uses speech recognition to allow voice commands during navigation.</string>
+    <string>This app needs location access to show nearby medical facilities and center the map on your location.</string>
     
     <!-- Configure for turn-by-turn navigation -->
     <key>UIRequiredDeviceCapabilities</key>
@@ -39,6 +15,6 @@
     
     <!-- Mapbox access token -->
     <key>MBXAccessToken</key>
-    <string>pk.eyJ1IjoiY21pbHRvbjQiLCJhIjoiY21kNTVkcjh1MG05eTJrb21qeHB0aXo4bCJ9.5vv9akWMhonZ_J3ftkUKRg</string>
+    <string>$(MAPBOX_ACCESS_TOKEN)</string>
 </dict>
 </plist>

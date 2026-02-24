@@ -20,6 +20,28 @@ public class WaitTimeService: ObservableObject {
     private var lastApiCall: [String: Date] = [:]
     private let apiStateQueue = DispatchQueue(label: "com.milton.stlwaittimes.apistate")
     private let minimumApiInterval: TimeInterval = 2.0 // Rate limiting: max 1 call per 2 seconds per endpoint
+    private let trustedAPIHosts: Set<String> = [
+        "api.clockwisemd.com",
+        "www.mercy.net",
+        "schedule.stlukes-stl.com"
+    ]
+    private let trustedWebsiteHosts: Set<String> = [
+        "clockwisemd.com",
+        "www.clockwisemd.com",
+        "gohealthuc.com",
+        "www.gohealthuc.com",
+        "afcurgentcare.com",
+        "www.afcurgentcare.com",
+        "stlukes-stl.com",
+        "www.stlukes-stl.com",
+        "mercy.net",
+        "www.mercy.net"
+    ]
+    
+    private enum TrustedURLPurpose {
+        case api
+        case website
+    }
     
     private struct CircuitBreakerState {
         var consecutiveFailures: Int = 0
@@ -48,18 +70,23 @@ public class WaitTimeService: ObservableObject {
     }
     
     private init() {
-        // Configure URLSession for optimal performance with multiple APIs
-        let config = URLSessionConfiguration.default
+        // Configure URLSession for secure transport and reduced local data retention.
+        let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 30.0 // Longer timeout for better reliability
         config.timeoutIntervalForResource = 60.0
         config.waitsForConnectivity = true
         config.allowsCellularAccess = true
         config.allowsExpensiveNetworkAccess = true
         config.allowsConstrainedNetworkAccess = true
+        config.tlsMinimumSupportedProtocolVersion = .TLSv12
+        config.urlCache = nil
+        config.httpCookieStorage = nil
+        config.httpShouldSetCookies = false
+        config.httpCookieAcceptPolicy = .never
         
         // Optimize for multiple concurrent requests
         config.httpMaximumConnectionsPerHost = 8
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         
         // Add headers for better server compatibility
         config.httpAdditionalHeaders = [
@@ -72,148 +99,20 @@ public class WaitTimeService: ObservableObject {
         ]
         
         self.session = URLSession(configuration: config)
-        
-        // Test network connectivity on initialization
-        testNetworkConnectivity()
-    }
-    
-    /// Tests basic network connectivity
-    private func testNetworkConnectivity() {
-        print("🔍 Testing network connectivity...")
-        
-        guard let url = URL(string: "https://httpbin.org/get") else {
-            print("❌ Failed to create test URL")
-            return
-        }
-        
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 10.0
-        
-        session.dataTask(with: request) { data, response, error in
-            DispatchQueue.main.async {
-                if let error = error {
-                    print("❌ Network connectivity test failed: \(error.localizedDescription)")
-                    if let nsError = error as NSError? {
-                        print("❌ Error domain: \(nsError.domain), code: \(nsError.code)")
-                    }
-                } else if let httpResponse = response as? HTTPURLResponse {
-                    print("✅ Network connectivity test passed: HTTP \(httpResponse.statusCode)")
-                    // If basic connectivity works, test an actual API
-                    self.testTotalAccessAPI()
-                } else {
-                    print("⚠️ Network connectivity test: Unknown response type")
-                }
-            }
-        }.resume()
-    }
-    
-    /// Tests a single Total Access API endpoint
-    private func testTotalAccessAPI() {
-        print("🔍 Testing Total Access API...")
-        
-        // Test the first API endpoint with new format
-        guard let url = URL(string: "https://api.clockwisemd.com/v1/hospitals/12604/waits") else {
-            print("❌ Failed to create Total Access API URL")
-            return
-        }
-        
-        var request = URLRequest(url: url)
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("STL-WaitLine/1.0", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 15.0
-        
-        print("🌐 Making test request to: \(url)")
-        
-        let startTime = Date()
-        session.dataTask(with: request) { data, response, error in
-            let duration = Date().timeIntervalSince(startTime)
-            
-            DispatchQueue.main.async {
-                print("⏱️ Request completed in \(String(format: "%.2f", duration))s")
-                
-                if let error = error {
-                    print("❌ Total Access API test failed: \(error.localizedDescription)")
-                    if let nsError = error as NSError? {
-                        print("❌ Error domain: \(nsError.domain), code: \(nsError.code)")
-                        print("❌ Error info: \(nsError.userInfo)")
-                        
-                        // Specific error code analysis
-                        switch nsError.code {
-                        case -1001:
-                            print("❌ TIMEOUT - Request timed out")
-                        case -1003:
-                            print("❌ HOST NOT FOUND - DNS resolution failed")
-                        case -1004:
-                            print("❌ CANNOT CONNECT - Server unreachable")
-                        case -1009:
-                            print("❌ OFFLINE - Device appears to be offline")
-                        case -1022:
-                            print("❌ ATS BLOCKED - App Transport Security blocked this request")
-                        case -1200:
-                            print("❌ SSL ERROR - Certificate or SSL issue")
-                        default:
-                            print("❌ UNKNOWN ERROR - Code \(nsError.code)")
-                        }
-                    }
-                    
-                    // Try a simpler HTTP request as fallback
-                    self.testSimpleHTTP()
-                    
-                } else if let httpResponse = response as? HTTPURLResponse {
-                    print("✅ Total Access API test: HTTP \(httpResponse.statusCode)")
-                    print("✅ Headers: \(httpResponse.allHeaderFields)")
-                    
-                    if let data = data {
-                        print("✅ Received \(data.count) bytes of data")
-                        if let jsonString = String(data: data, encoding: .utf8) {
-                            print("📄 Response: \(jsonString.prefix(500))...")
-                        }
-                    }
-                } else {
-                    print("⚠️ Total Access API test: Unknown response type")
-                }
-            }
-        }.resume()
-    }
-    
-    /// Tests a simple HTTP request to isolate network issues
-    private func testSimpleHTTP() {
-        print("🔍 Testing simple HTTP request...")
-        
-        // Try a simple HTTP endpoint
-        guard let url = URL(string: "http://httpbin.org/json") else {
-            print("❌ Failed to create simple HTTP URL")
-            return
-        }
-        
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 10.0
-        
-        session.dataTask(with: request) { data, response, error in
-            DispatchQueue.main.async {
-                if let error = error {
-                    print("❌ Simple HTTP test failed: \(error.localizedDescription)")
-                } else if let httpResponse = response as? HTTPURLResponse {
-                    print("✅ Simple HTTP test: HTTP \(httpResponse.statusCode)")
-                } else {
-                    print("⚠️ Simple HTTP test: Unknown response")
-                }
-            }
-        }.resume()
     }
     
     /// Fetches wait times for all refreshable facilities in batches with smart error handling
     func fetchAllWaitTimes(facilities: [Facility], completion: ((Result<Void, WaitTimeError>) -> Void)? = nil) {
-        print("🔍 DEBUG: fetchAllWaitTimes called with \(facilities.count) facilities")
+        debugLog("🔍 DEBUG: fetchAllWaitTimes called with \(facilities.count) facilities")
         for (index, facility) in facilities.enumerated() {
-            print("   \(index + 1). \(facility.name) (\(facility.id))")
-            print("      API: \(facility.apiEndpoint ?? "NONE")")
+            debugLog("   \(index + 1). \(facility.name) (\(facility.id))")
+            debugLog("      API: \(facility.apiEndpoint ?? "NONE")")
             
             // KIRKWOOD DEBUGGING: Check if Kirkwood is in the list
             if facility.id == "total-access-12624" {
-                print("🟡 KIRKWOOD FOUND in facility list!")
-                print("🟡 KIRKWOOD: Name = \(facility.name)")
-                print("🟡 KIRKWOOD: API = \(facility.apiEndpoint ?? "NONE")")
+                debugLog("🟡 KIRKWOOD FOUND in facility list!")
+                debugLog("🟡 KIRKWOOD: Name = \(facility.name)")
+                debugLog("🟡 KIRKWOOD: API = \(facility.apiEndpoint ?? "NONE")")
             }
         }
         
@@ -221,7 +120,7 @@ public class WaitTimeService: ObservableObject {
         let refreshableFacilities = facilities.filter {
             $0.apiEndpoint != nil || $0.websiteURL != nil || $0.cmsAverageWaitMinutes != nil
         }
-        print("🔍 DEBUG: Processing \(refreshableFacilities.count) refreshable facilities (API/Web/CMS)")
+        debugLog("🔍 DEBUG: Processing \(refreshableFacilities.count) refreshable facilities (API/Web/CMS)")
         
         for facility in refreshableFacilities {
             let method: String
@@ -234,11 +133,11 @@ public class WaitTimeService: ObservableObject {
             } else {
                 method = "CMS"
             }
-            print("   - \(facility.name): \(method)")
+            debugLog("   - \(facility.name): \(method)")
         }
         
         guard !refreshableFacilities.isEmpty else {
-            print("❌ No refreshable facilities found")
+            debugLog("❌ No refreshable facilities found")
             completion?(.failure(.noData))
             return 
         }
@@ -246,7 +145,7 @@ public class WaitTimeService: ObservableObject {
         isLoading = true
         error = nil
         
-        print("🚀 Starting batch fetch for \(refreshableFacilities.count) facilities...")
+        debugLog("🚀 Starting batch fetch for \(refreshableFacilities.count) facilities...")
         
         // Process facilities in smart batches to avoid overwhelming the server
         let batchSize = 10
@@ -256,14 +155,14 @@ public class WaitTimeService: ObservableObject {
         
         let batchPublisher = Publishers.Sequence(sequence: batches.enumerated())
             .flatMap { (batchIndex, batch) -> AnyPublisher<[WaitTime], WaitTimeError> in
-                print("📦 Processing batch \(batchIndex + 1) of \(batches.count) with \(batch.count) facilities...")
+                debugLog("📦 Processing batch \(batchIndex + 1) of \(batches.count) with \(batch.count) facilities...")
                 
                 // For the first batch, execute immediately. For subsequent batches, add delay.
                 if batchIndex == 0 {
-                    print("⚡ First batch - executing immediately")
+                    debugLog("⚡ First batch - executing immediately")
                     return self.fetchBatchWaitTimes(facilities: batch)
                 } else {
-                    print("⏱️ Subsequent batch - adding 2s delay")
+                    debugLog("⏱️ Subsequent batch - adding 2s delay")
                     return self.fetchBatchWaitTimes(facilities: batch)
                         .delay(for: .seconds(2), scheduler: DispatchQueue.main)
                         .eraseToAnyPublisher()
@@ -277,10 +176,10 @@ public class WaitTimeService: ObservableObject {
                     switch pipelineCompletion {
                     case .failure(let error):
                         self?.error = error
-                        print("❌ Batch fetch completed with error: \(error.localizedDescription)")
+                        debugLog("❌ Batch fetch completed with error: \(error.localizedDescription)")
                         completion?(.failure(error))
                     case .finished:
-                        print("✅ All batch fetches completed successfully")
+                        debugLog("✅ All batch fetches completed successfully")
                         completion?(.success(()))
                     }
                 },
@@ -293,7 +192,7 @@ public class WaitTimeService: ObservableObject {
                         self?.waitTimes[waitTime.facilityId] = waitTime
                     }
                     
-                    print("📊 Successfully updated \(allWaitTimes.count) wait times")
+                    debugLog("📊 Successfully updated \(allWaitTimes.count) wait times")
                     self?.logWaitTimeStats(allWaitTimes)
                 }
             )
@@ -304,16 +203,16 @@ public class WaitTimeService: ObservableObject {
     /// Fetches wait time for a single facility and updates the waitTimes dictionary
     /// Used for manual refresh of individual facilities
     func fetchSingleFacilityWaitTime(facility: Facility) {
-        print("🔄 Manual refresh requested for \(facility.name)")
+        debugLog("🔄 Manual refresh requested for \(facility.name)")
         
         // Prevent multiple concurrent refreshes of the same facility
         guard !refreshingFacilities.contains(facility.id) else {
-            print("⚠️ Facility \(facility.name) is already being refreshed")
+            debugLog("⚠️ Facility \(facility.name) is already being refreshed")
             return
         }
         
         if let apiEndpoint = facility.apiEndpoint, !shouldMakeApiCall(for: apiEndpoint) {
-            print("🚫 Manual refresh skipped for \(facility.name) due to circuit breaker or rate limiting")
+            debugLog("🚫 Manual refresh skipped for \(facility.name) due to circuit breaker or rate limiting")
             DispatchQueue.main.async {
                 self.error = .rateLimited
             }
@@ -332,17 +231,17 @@ public class WaitTimeService: ObservableObject {
                     self?.refreshingFacilities.remove(facility.id)
                     
                     if case .failure(let error) = completion {
-                        print("❌ Manual refresh failed for \(facility.name): \(error)")
+                        debugLog("❌ Manual refresh failed for \(facility.name): \(error)")
                         self?.error = error
                     }
                 },
                 receiveValue: { [weak self] waitTime in
                     if let waitTime = waitTime {
-                        print("✅ Manual refresh successful for \(facility.name): \(waitTime.displayText)")
+                        debugLog("✅ Manual refresh successful for \(facility.name): \(waitTime.displayText)")
                         self?.waitTimes[facility.id] = waitTime
                         self?.lastUpdateTime = Date()
                     } else {
-                        print("⚠️ Manual refresh returned no data for \(facility.name)")
+                        debugLog("⚠️ Manual refresh returned no data for \(facility.name)")
                         // Optionally set an "N/A" wait time or keep existing data
                     }
                 }
@@ -352,60 +251,60 @@ public class WaitTimeService: ObservableObject {
     
     /// Fetches wait times for a batch of facilities in parallel
     private func fetchBatchWaitTimes(facilities: [Facility]) -> AnyPublisher<[WaitTime], WaitTimeError> {
-        print("🔄 Starting batch of \(facilities.count) API calls...")
-        print("🔍 BATCH FACILITIES DEBUG:")
+        debugLog("🔄 Starting batch of \(facilities.count) API calls...")
+        debugLog("🔍 BATCH FACILITIES DEBUG:")
         for facility in facilities {
-            print("   - \(facility.name) (\(facility.id))")
-            print("     API: \(facility.apiEndpoint ?? "NONE")")
+            debugLog("   - \(facility.name) (\(facility.id))")
+            debugLog("     API: \(facility.apiEndpoint ?? "NONE")")
         }
         
         let publishers = facilities.compactMap { facility -> AnyPublisher<WaitTime?, Never>? in
-            print("🔍 DEBUG: Checking facility: \(facility.name)")
-            print("   - facility.id: \(facility.id)")
-            print("   - facility.apiEndpoint: \(facility.apiEndpoint ?? "nil")")
-            print("   - facility.name: \(facility.name)")
+            debugLog("🔍 DEBUG: Checking facility: \(facility.name)")
+            debugLog("   - facility.id: \(facility.id)")
+            debugLog("   - facility.apiEndpoint: \(facility.apiEndpoint ?? "nil")")
+            debugLog("   - facility.name: \(facility.name)")
             
             // FIXED: Support facilities with web scraping only (no API endpoint)
             if let apiEndpoint = facility.apiEndpoint {
-                print("✅ \(facility.name): API endpoint found - \(apiEndpoint)")
-                print("🔍 \(facility.name): About to check circuit breaker and rate limiting...")
+                debugLog("✅ \(facility.name): API endpoint found - \(apiEndpoint)")
+                debugLog("🔍 \(facility.name): About to check circuit breaker and rate limiting...")
                 
                 // Check circuit breaker and rate limiting for API calls
                 if !shouldMakeApiCall(for: apiEndpoint) {
-                    print("🚫 \(facility.name): Skipped due to circuit breaker or rate limiting")
+                    debugLog("🚫 \(facility.name): Skipped due to circuit breaker or rate limiting")
                     return Just(nil).eraseToAnyPublisher()
                 }
                 
-                print("✅ \(facility.name): Passed circuit breaker and rate limiting checks")
-                print("➡️ \(facility.name): Starting API call to \(apiEndpoint)")
+                debugLog("✅ \(facility.name): Passed circuit breaker and rate limiting checks")
+                debugLog("➡️ \(facility.name): Starting API call to \(apiEndpoint)")
             } else {
-                print("🕷️ \(facility.name): No API endpoint - using WEB SCRAPING ONLY")
-                print("   🌐 Website URL: \(facility.websiteURL ?? "nil")")
+                debugLog("🕷️ \(facility.name): No API endpoint - using WEB SCRAPING ONLY")
+                debugLog("   🌐 Website URL: \(facility.websiteURL ?? "nil")")
             }
             
             return fetchWaitTime(for: facility)
                 .map { waitTime -> WaitTime? in
                     if let waitTime = waitTime {
-                        print("✅ \(facility.name): Success - \(waitTime.waitMinutes) min")
+                        debugLog("✅ \(facility.name): Success - \(waitTime.waitMinutes) min")
                     } else {
-                        print("⚠️ \(facility.name): Returned nil wait time")
+                        debugLog("⚠️ \(facility.name): Returned nil wait time")
                     }
                     return waitTime
                 }
                 .catch { error -> Just<WaitTime?> in
-                    print("❌ \(facility.name): Failed - \(error.localizedDescription)")
+                    debugLog("❌ \(facility.name): Failed - \(error.localizedDescription)")
                     if let nsError = error as NSError? {
-                        print("❌ \(facility.name): Error domain: \(nsError.domain), code: \(nsError.code)")
+                        debugLog("❌ \(facility.name): Error domain: \(nsError.domain), code: \(nsError.code)")
                     }
                     
                     // DETAILED N/A DEBUGGING
                     if facility.name.contains("St. Peters") {
-                        print("🔍 ST. PETERS N/A DEBUG:")
-                        print("   - Facility ID: \(facility.id)")
-                        print("   - API Endpoint: \(facility.apiEndpoint ?? "nil")")
-                        print("   - Website URL: \(facility.websiteURL ?? "nil")")
-                        print("   - Error: \(error)")
-                        print("   - Error Type: \(type(of: error))")
+                        debugLog("🔍 ST. PETERS N/A DEBUG:")
+                        debugLog("   - Facility ID: \(facility.id)")
+                        debugLog("   - API Endpoint: \(facility.apiEndpoint ?? "nil")")
+                        debugLog("   - Website URL: \(facility.websiteURL ?? "nil")")
+                        debugLog("   - Error: \(error)")
+                        debugLog("   - Error Type: \(type(of: error))")
                     }
                     
                     return Just(nil)
@@ -413,21 +312,21 @@ public class WaitTimeService: ObservableObject {
                 .eraseToAnyPublisher()
         }
         
-        print("📊 Total facilities processed: \(facilities.count)")
-        print("📊 Valid publishers created: \(publishers.count)")
+        debugLog("📊 Total facilities processed: \(facilities.count)")
+        debugLog("📊 Valid publishers created: \(publishers.count)")
         
         guard !publishers.isEmpty else {
-            print("❌ No valid publishers created for batch")
+            debugLog("❌ No valid publishers created for batch")
             return Just([]).setFailureType(to: WaitTimeError.self).eraseToAnyPublisher()
         }
         
-        print("📡 Created \(publishers.count) publishers for batch")
+        debugLog("📡 Created \(publishers.count) publishers for batch")
         
         return Publishers.MergeMany(publishers)
             .collect()
             .map { waitTimes in
                 let results = waitTimes.compactMap { $0 }
-                print("📊 Batch completed: \(results.count) successful out of \(waitTimes.count) attempts")
+                debugLog("📊 Batch completed: \(results.count) successful out of \(waitTimes.count) attempts")
                 return results
             }
             .setFailureType(to: WaitTimeError.self)
@@ -439,9 +338,9 @@ public class WaitTimeService: ObservableObject {
         
         // PRIORITY 1: API FIRST for reliable, structured data
         if let apiEndpoint = facility.apiEndpoint {
-            print("🎯 \(facility.name): Using API as PRIMARY method for reliable data")
-            print("   🔗 API Endpoint: \(apiEndpoint)")
-            print("   📊 API provides structured, reliable patient count data")
+            debugLog("🎯 \(facility.name): Using API as PRIMARY method for reliable data")
+            debugLog("   🔗 API Endpoint: \(apiEndpoint)")
+            debugLog("   📊 API provides structured, reliable patient count data")
             
             recordApiAttempt(for: apiEndpoint)
             
@@ -457,13 +356,13 @@ public class WaitTimeService: ObservableObject {
                     }
                 )
                 .catch { error -> AnyPublisher<WaitTime?, WaitTimeError> in
-                    print("⚠️ \(facility.name): API failed, falling back to web scraping...")
-                    print("   ❌ API error: \(error.localizedDescription)")
+                    debugLog("⚠️ \(facility.name): API failed, falling back to web scraping...")
+                    debugLog("   ❌ API error: \(error.localizedDescription)")
                     return self.fetchWebScrapingWaitTime(for: facility)
                 }
                 .eraseToAnyPublisher()
         } else {
-            print("🕷️ \(facility.name): No API endpoint - using web scraping only")
+            debugLog("🕷️ \(facility.name): No API endpoint - using web scraping only")
             return fetchWebScrapingWaitTime(for: facility)
         }
     }
@@ -472,7 +371,7 @@ public class WaitTimeService: ObservableObject {
     private func fetchAPIFallback(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
         let provider = determineAPIProvider(for: facility)
         
-        print("🏥 \(facility.name): Using \(provider.displayName) API as primary data source")
+        debugLog("🏥 \(facility.name): Using \(provider.displayName) API as primary data source")
         
         switch provider {
         case .clockwiseMD:
@@ -514,27 +413,54 @@ public class WaitTimeService: ObservableObject {
         }
     }
     
+    private func validatedTrustedURL(
+        from rawValue: String,
+        purpose: TrustedURLPurpose,
+        facilityName: String
+    ) -> URL? {
+        guard var components = URLComponents(string: rawValue),
+              let scheme = components.scheme?.lowercased(),
+              let host = components.host?.lowercased() else {
+            debugLog("❌ \(facilityName): Invalid URL format")
+            return nil
+        }
+        
+        guard scheme == "https" else {
+            debugLog("🚫 \(facilityName): Blocked non-HTTPS URL: \(rawValue)")
+            return nil
+        }
+        
+        let allowedHosts = (purpose == .api) ? trustedAPIHosts : trustedWebsiteHosts
+        guard allowedHosts.contains(host) else {
+            debugLog("🚫 \(facilityName): Blocked untrusted host: \(host)")
+            return nil
+        }
+        
+        components.scheme = "https"
+        return components.url
+    }
+    
     /// Fetches wait time from ClockwiseMD API (Total Access Urgent Care)
     /// PRIORITY: Web scraping first, then API fallback for Total Access facilities
     private func fetchClockwiseMDWaitTime(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
-        print("🔍 DEBUG: fetchClockwiseMDWaitTime called for \(facility.name)")
-        print("   - facility.id: \(facility.id)")
-        print("   - facility.apiEndpoint: \(facility.apiEndpoint ?? "nil")")
+        debugLog("🔍 DEBUG: fetchClockwiseMDWaitTime called for \(facility.name)")
+        debugLog("   - facility.id: \(facility.id)")
+        debugLog("   - facility.apiEndpoint: \(facility.apiEndpoint ?? "nil")")
         
         // For Total Access, prioritize web scraping over API for most accurate real-time data
         if facility.id.hasPrefix("total-access"), let websiteURL = facility.websiteURL {
-            print("🕷️ \(facility.name): Using web scraping as PRIMARY source (more accurate than API)")
-            print("   🌐 Website URL: \(websiteURL)")
-            print("   🔄 This is a REFRESH call - web scraping should get latest data")
+            debugLog("🕷️ \(facility.name): Using web scraping as PRIMARY source (more accurate than API)")
+            debugLog("   🌐 Website URL: \(websiteURL)")
+            debugLog("   🔄 This is a REFRESH call - web scraping should get latest data")
             return fetchWebScrapingWaitTime(for: facility)
                 .catch { error -> AnyPublisher<WaitTime?, WaitTimeError> in
-                    print("⚠️ \(facility.name): Web scraping failed, falling back to API...")
-                    print("   ❌ Web scraping error: \(error.localizedDescription)")
+                    debugLog("⚠️ \(facility.name): Web scraping failed, falling back to API...")
+                    debugLog("   ❌ Web scraping error: \(error.localizedDescription)")
                     return self.fetchClockwiseMDAPIWaitTime(for: facility)
                 }
                 .eraseToAnyPublisher()
         } else {
-            print("🔗 \(facility.name): Using API as primary source (no website URL)")
+            debugLog("🔗 \(facility.name): Using API as primary source (no website URL)")
             return fetchClockwiseMDAPIWaitTime(for: facility)
         }
     }
@@ -542,13 +468,13 @@ public class WaitTimeService: ObservableObject {
     /// Fetches wait time from web scraping (PRIMARY for Total Access)
     private func fetchWebScrapingWaitTime(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
         guard let websiteURL = facility.websiteURL,
-              let url = URL(string: websiteURL) else {
-            print("❌ \(facility.name): No website URL available for scraping")
+              let url = validatedTrustedURL(from: websiteURL, purpose: .website, facilityName: facility.name) else {
+            debugLog("❌ \(facility.name): No website URL available for scraping")
             return Fail(error: WaitTimeError.invalidURL)
                 .eraseToAnyPublisher()
         }
         
-        print("🌐 \(facility.name): Web scraping from \(websiteURL)")
+        debugLog("🌐 \(facility.name): Web scraping from \(websiteURL)")
         
         var request = URLRequest(url: url)
         request.setValue("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
@@ -574,24 +500,24 @@ public class WaitTimeService: ObservableObject {
             .tryMap { htmlContent -> WaitTime in
                 let endTime = Date()
                 let duration = endTime.timeIntervalSince(startTime)
-                print("⏱️ \(facility.name): Web scraping completed in \(String(format: "%.2f", duration))s")
-                print("📊 \(facility.name): Received \(htmlContent.count) characters of HTML content")
+                debugLog("⏱️ \(facility.name): Web scraping completed in \(String(format: "%.2f", duration))s")
+                debugLog("📊 \(facility.name): Received \(htmlContent.count) characters of HTML content")
                 
                 let waitTime = self.parseWebScrapingWaitTime(htmlContent, for: facility)
                 
                 if let waitTime = waitTime {
-                    print("✅ \(facility.name): Successfully parsed wait time from web scraping")
+                    debugLog("✅ \(facility.name): Successfully parsed wait time from web scraping")
                     return waitTime
                 } else {
-                    print("❌ \(facility.name): Failed to parse wait time from web scraping - triggering API fallback")
+                    debugLog("❌ \(facility.name): Failed to parse wait time from web scraping - triggering API fallback")
                     throw WaitTimeError.noData
                 }
             }
             .catch { error -> AnyPublisher<WaitTime?, WaitTimeError> in
                 let endTime = Date()
                 let duration = endTime.timeIntervalSince(startTime)
-                print("⏱️ \(facility.name): Web scraping failed in \(String(format: "%.2f", duration))s")
-                print("❌ \(facility.name): Web scraping error - \(error.localizedDescription)")
+                debugLog("⏱️ \(facility.name): Web scraping failed in \(String(format: "%.2f", duration))s")
+                debugLog("❌ \(facility.name): Web scraping error - \(error.localizedDescription)")
                 return Fail(error: WaitTimeError.apiError("Web scraping failed"))
                     .eraseToAnyPublisher()
             }
@@ -600,7 +526,7 @@ public class WaitTimeService: ObservableObject {
     
     /// Parses wait time from web scraping HTML content (PRIMARY for Total Access)
     private func parseWebScrapingWaitTime(_ htmlContent: String, for facility: Facility) -> WaitTime? {
-        print("🔍 \(facility.name): Parsing web scraped HTML for patients in line...")
+        debugLog("🔍 \(facility.name): Parsing web scraped HTML for patients in line...")
         
         // PRIORITY 1: Check for Total Access specific JavaScript data patterns
         // Look for JavaScript variables or embedded data that contains patient counts
@@ -633,10 +559,10 @@ public class WaitTimeService: ObservableObject {
             #"inline-\d+["'][^>]*?[^<]*?(\d+)[^>]*?Patients\s+In\s+Line"#
         ]
         
-        print("🔍 \(facility.name): Checking for JavaScript data patterns...")
+        debugLog("🔍 \(facility.name): Checking for JavaScript data patterns...")
         
         // First check Total Access specific patterns
-        print("🎯 \(facility.name): Checking Total Access specific patterns...")
+        debugLog("🎯 \(facility.name): Checking Total Access specific patterns...")
         for (index, pattern) in totalAccessSpecificPatterns.enumerated() {
             if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
                 let matches = regex.matches(in: htmlContent, options: [], range: NSRange(htmlContent.startIndex..., in: htmlContent))
@@ -649,9 +575,9 @@ public class WaitTimeService: ObservableObject {
                         let matchedText = String(htmlContent[fullMatchRange])
                         
                         if patientsCount >= 0 && patientsCount <= 50 {
-                            print("✅ \(facility.name): Found \(patientsCount) patients using Total Access pattern \(index + 1)")
-                            print("   📝 Matched: '\(matchedText)'")
-                            print("   🎯 Pattern: \(pattern)")
+                            debugLog("✅ \(facility.name): Found \(patientsCount) patients using Total Access pattern \(index + 1)")
+                            debugLog("   📝 Matched: '\(matchedText)'")
+                            debugLog("   🎯 Pattern: \(pattern)")
                             
                             return WaitTime(
                                 facilityId: facility.id,
@@ -675,17 +601,15 @@ public class WaitTimeService: ObservableObject {
                     if let patientsRange = Range(match.range(at: 1), in: htmlContent),
                        let patientsCount = Int(htmlContent[patientsRange]) {
                         
-                        // Get context for validation
+                        // Capture matched text for debug validation.
                         let fullMatchRange = Range(match.range, in: htmlContent)!
-                        let _ = max(htmlContent.startIndex, htmlContent.index(fullMatchRange.lowerBound, offsetBy: -100, limitedBy: htmlContent.startIndex) ?? htmlContent.startIndex)
-                        let contextEnd = min(htmlContent.endIndex, htmlContent.index(fullMatchRange.upperBound, offsetBy: 100, limitedBy: htmlContent.endIndex) ?? htmlContent.endIndex)
                         let matchedText = String(htmlContent[fullMatchRange])
                         
                         // Validate the number is reasonable (0-50 patients for urgent care)
                         if patientsCount >= 0 && patientsCount <= 50 {
-                            print("✅ \(facility.name): Found \(patientsCount) patients using JS pattern \(index + 1)")
-                            print("   📝 Matched: '\(matchedText)'")
-                            print("   🎯 Pattern: \(pattern)")
+                            debugLog("✅ \(facility.name): Found \(patientsCount) patients using JS pattern \(index + 1)")
+                            debugLog("   📝 Matched: '\(matchedText)'")
+                            debugLog("   🎯 Pattern: \(pattern)")
                             
                             return WaitTime(
                                 facilityId: facility.id,
@@ -697,7 +621,7 @@ public class WaitTimeService: ObservableObject {
                                 waitTimeRange: nil
                             )
                         } else {
-                            print("⚠️ \(facility.name): Rejected unreasonable JS patient count: \(patientsCount)")
+                            debugLog("⚠️ \(facility.name): Rejected unreasonable JS patient count: \(patientsCount)")
                         }
                     }
                 }
@@ -706,7 +630,7 @@ public class WaitTimeService: ObservableObject {
         
         // PRIORITY 2: Look for any numbers near "Patients In Line" text
         // This handles cases where the number might be loaded but not in the expected format
-        print("🔍 \(facility.name): Searching for numbers near 'Patients In Line' text...")
+        debugLog("🔍 \(facility.name): Searching for numbers near 'Patients In Line' text...")
         if let patientsInLineRange = htmlContent.range(of: "Patients In Line", options: .caseInsensitive) {
             // Look for numbers within 200 characters before or after "Patients In Line"
             let searchStart = max(htmlContent.startIndex, htmlContent.index(patientsInLineRange.lowerBound, offsetBy: -200, limitedBy: htmlContent.startIndex) ?? htmlContent.startIndex)
@@ -735,8 +659,8 @@ public class WaitTimeService: ObservableObject {
                             }
                             
                             if !isExcluded {
-                                print("✅ \(facility.name): Found \(patientCount) patients near 'Patients In Line' text")
-                                print("   📝 Context: '\(context)'")
+                                debugLog("✅ \(facility.name): Found \(patientCount) patients near 'Patients In Line' text")
+                                debugLog("   📝 Context: '\(context)'")
                                 
                                 return WaitTime(
                                     facilityId: facility.id,
@@ -809,17 +733,17 @@ public class WaitTimeService: ObservableObject {
                         }
                         
                         if isExcluded {
-                            print("⚠️ \(facility.name): Rejected match from navigation/header: '\(matchedText)'")
-                            print("   📝 Context: ...\(contextText.prefix(200))...")
+                            debugLog("⚠️ \(facility.name): Rejected match from navigation/header: '\(matchedText)'")
+                            debugLog("   📝 Context: ...\(contextText.prefix(200))...")
                             continue
                         }
                         
                         // Validate the number is reasonable (0-50 patients for urgent care)
                         if patientsCount >= 0 && patientsCount <= 50 {
-                            print("✅ \(facility.name): Found \(patientsCount) patients using pattern \(index + 1)")
-                            print("   📝 Matched text: '\(matchedText)'")
-                            print("   🎯 Pattern: \(pattern)")
-                            print("   ✅ Context validation passed")
+                            debugLog("✅ \(facility.name): Found \(patientsCount) patients using pattern \(index + 1)")
+                            debugLog("   📝 Matched text: '\(matchedText)'")
+                            debugLog("   🎯 Pattern: \(pattern)")
+                            debugLog("   ✅ Context validation passed")
                             
                             return WaitTime(
                                 facilityId: facility.id,
@@ -831,7 +755,7 @@ public class WaitTimeService: ObservableObject {
                                 waitTimeRange: nil
                             )
                         } else {
-                            print("⚠️ \(facility.name): Rejected unreasonable patient count: \(patientsCount) from '\(matchedText)'")
+                            debugLog("⚠️ \(facility.name): Rejected unreasonable patient count: \(patientsCount) from '\(matchedText)'")
                         }
                     }
                 }
@@ -857,7 +781,7 @@ public class WaitTimeService: ObservableObject {
                 let matchRange = Range(match.range, in: htmlContent)!
                 let matchedText = String(htmlContent[matchRange])
                 
-                print("✅ \(facility.name): Found no-wait indicator using pattern \(index + 1): '\(matchedText)'")
+                debugLog("✅ \(facility.name): Found no-wait indicator using pattern \(index + 1): '\(matchedText)'")
                 
                 return WaitTime(
                     facilityId: facility.id,
@@ -907,13 +831,13 @@ public class WaitTimeService: ObservableObject {
                 }
                 
                 if isFalsePositive {
-                    print("⚠️ \(facility.name): Rejected false positive closed indicator: '\(matchedText)'")
-                    print("   📝 Context: ...\(contextText.prefix(200))...")
+                    debugLog("⚠️ \(facility.name): Rejected false positive closed indicator: '\(matchedText)'")
+                    debugLog("   📝 Context: ...\(contextText.prefix(200))...")
                     continue
                 }
                 
-                print("🔒 \(facility.name): Found legitimate closed indicator using pattern \(index + 1): '\(matchedText)'")
-                print("   📝 Context: ...\(contextText.prefix(200))...")
+                debugLog("🔒 \(facility.name): Found legitimate closed indicator using pattern \(index + 1): '\(matchedText)'")
+                debugLog("   📝 Context: ...\(contextText.prefix(200))...")
                 
                 return WaitTime(
                     facilityId: facility.id,
@@ -927,14 +851,14 @@ public class WaitTimeService: ObservableObject {
             }
         }
         
-        print("❌ \(facility.name): No patients in line data found in web content")
-        print("📊 \(facility.name): HTML content length: \(htmlContent.count) characters")
+        debugLog("❌ \(facility.name): No patients in line data found in web content")
+        debugLog("📊 \(facility.name): HTML content length: \(htmlContent.count) characters")
         
         // ENHANCED DEBUG: Look for any numbers that might indicate patient counts
         let numberPattern = #"\b\d+\b"#
         if let regex = try? NSRegularExpression(pattern: numberPattern, options: []) {
             let matches = regex.matches(in: htmlContent, options: [], range: NSRange(htmlContent.startIndex..., in: htmlContent))
-            print("🔢 \(facility.name): Found \(matches.count) numbers in content")
+            debugLog("🔢 \(facility.name): Found \(matches.count) numbers in content")
             
             // Show first 10 numbers with context
             for (index, match) in matches.prefix(10).enumerated() {
@@ -943,7 +867,7 @@ public class WaitTimeService: ObservableObject {
                     let contextStart = max(htmlContent.startIndex, htmlContent.index(numberRange.lowerBound, offsetBy: -30, limitedBy: htmlContent.startIndex) ?? htmlContent.startIndex)
                     let contextEnd = min(htmlContent.endIndex, htmlContent.index(numberRange.upperBound, offsetBy: 30, limitedBy: htmlContent.endIndex) ?? htmlContent.endIndex)
                     let context = String(htmlContent[contextStart..<contextEnd])
-                    print("   \(index + 1). '\(number)' in context: ...\(context)...")
+                    debugLog("   \(index + 1). '\(number)' in context: ...\(context)...")
                 }
             }
         }
@@ -953,21 +877,21 @@ public class WaitTimeService: ObservableObject {
             "patient", "waiting", "line", "queue", "count", "check", "current", "in line", "wait time"
         ]
         
-        print("🔍 \(facility.name): Searching for key terms in HTML...")
+        debugLog("🔍 \(facility.name): Searching for key terms in HTML...")
         for snippet in debugSnippets {
             if let range = htmlContent.range(of: snippet, options: .caseInsensitive) {
                 let start = max(htmlContent.startIndex, htmlContent.index(range.lowerBound, offsetBy: -80, limitedBy: htmlContent.startIndex) ?? htmlContent.startIndex)
                 let end = min(htmlContent.endIndex, htmlContent.index(range.upperBound, offsetBy: 80, limitedBy: htmlContent.endIndex) ?? htmlContent.endIndex)
                 let context = String(htmlContent[start..<end])
-                print("📝 \(facility.name): Found '\(snippet)' context: ...\(context)...")
+                debugLog("📝 \(facility.name): Found '\(snippet)' context: ...\(context)...")
             } else {
-                print("❌ \(facility.name): Did NOT find '\(snippet)' in content")
+                debugLog("❌ \(facility.name): Did NOT find '\(snippet)' in content")
             }
         }
         
         // Save first 2000 characters for debugging
         let debugContent = String(htmlContent.prefix(2000))
-        print("📄 \(facility.name): HTML Preview (first 2000 chars):\n\(debugContent)")
+        debugLog("📄 \(facility.name): HTML Preview (first 2000 chars):\n\(debugContent)")
         
         // Return nil to indicate no data found (will trigger API fallback)
         return nil
@@ -978,19 +902,19 @@ public class WaitTimeService: ObservableObject {
         // Extract numeric ID from facility.id (e.g., "total-access-12604" -> "12604")
         // Use apiEndpoint directly from facility data (contains correct ClockwiseMD API URL)
         guard let apiEndpoint = facility.apiEndpoint else {
-            print("❌ \(facility.name): Missing ClockwiseMD API endpoint")
+            debugLog("❌ \(facility.name): Missing ClockwiseMD API endpoint")
             return Fail(error: WaitTimeError.invalidURL)
                 .eraseToAnyPublisher()
         }
-        guard let url = URL(string: apiEndpoint) else {
-            print("❌ \(facility.name): Invalid ClockwiseMD API URL - \(apiEndpoint)")
+        guard let url = validatedTrustedURL(from: apiEndpoint, purpose: .api, facilityName: facility.name) else {
+            debugLog("❌ \(facility.name): Invalid ClockwiseMD API URL - \(apiEndpoint)")
             return Fail(error: WaitTimeError.invalidURL)
                 .eraseToAnyPublisher()
         }
         
-        print("🎯 \(facility.name): Using direct ClockwiseMD API endpoint: \(apiEndpoint)")
-        print("🌐 \(facility.name): Fetching from \(apiEndpoint)")
-        print("🚀 \(facility.name): Starting ClockwiseMD API request...")
+        debugLog("🎯 \(facility.name): Using direct ClockwiseMD API endpoint: \(apiEndpoint)")
+        debugLog("🌐 \(facility.name): Fetching from \(apiEndpoint)")
+        debugLog("🚀 \(facility.name): Starting ClockwiseMD API request...")
         
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -1004,7 +928,7 @@ public class WaitTimeService: ObservableObject {
             .tryMap { data, response -> Data in
                 if let httpResponse = response as? HTTPURLResponse {
                     guard 200...299 ~= httpResponse.statusCode else {
-                        print("❌ \(facility.name): HTTP error \(httpResponse.statusCode)")
+                        debugLog("❌ \(facility.name): HTTP error \(httpResponse.statusCode)")
                         throw WaitTimeError.apiError("HTTP \(httpResponse.statusCode)")
                     }
                 }
@@ -1014,38 +938,38 @@ public class WaitTimeService: ObservableObject {
             .map { response -> WaitTime? in
                 let endTime = Date()
                 let duration = endTime.timeIntervalSince(startTime)
-                print("⏱️ \(facility.name): Request completed in \(String(format: "%.2f", duration))s")
+                debugLog("⏱️ \(facility.name): Request completed in \(String(format: "%.2f", duration))s")
                 
                 // DETAILED ST. PETERS API RESPONSE DEBUGGING
                 if facility.name.contains("St. Peters") {
-                    print("🔍 ST. PETERS API RESPONSE DEBUG:")
-                    print("   - Raw Response: \(response)")
-                    print("   - appointment_queues count: \(response.appointmentQueues?.count ?? 0)")
+                    debugLog("🔍 ST. PETERS API RESPONSE DEBUG:")
+                    debugLog("   - Raw Response: \(response)")
+                    debugLog("   - appointment_queues count: \(response.appointmentQueues?.count ?? 0)")
                     if let queues = response.appointmentQueues {
                         for (index, queue) in queues.enumerated() {
-                            print("   - Queue \(index): queueId=\(queue.queueId ?? -1), patients=\(queue.queueWaits?.currentPatientsInLine ?? -1)")
+                            debugLog("   - Queue \(index): queueId=\(queue.queueId ?? -1), patients=\(queue.queueWaits?.currentPatientsInLine ?? -1)")
                         }
                     }
                 }
                 
                 let isKirkwood = facility.id == "total-access-12624"
                 if isKirkwood {
-                    print("🟡 KIRKWOOD SUCCESS: API request completed successfully!")
-                    print("🟡 KIRKWOOD: About to parse response...")
+                    debugLog("🟡 KIRKWOOD SUCCESS: API request completed successfully!")
+                    debugLog("🟡 KIRKWOOD: About to parse response...")
                 }
                 
                 let waitTime = self.parseClockwiseMDWaitTime(from: response, for: facility)
                 
                 if let waitTime = waitTime {
-                    print("✅ \(facility.name): Success - \(waitTime.waitMinutes) min")
+                    debugLog("✅ \(facility.name): Success - \(waitTime.waitMinutes) min")
                     if isKirkwood {
-                        print("🟡 KIRKWOOD: Parsing completed successfully!")
-                        print("🟡 KIRKWOOD: WaitTime object created")
+                        debugLog("🟡 KIRKWOOD: Parsing completed successfully!")
+                        debugLog("🟡 KIRKWOOD: WaitTime object created")
                     }
                 } else {
-                    print("⚠️ \(facility.name): No wait time data in response")
+                    debugLog("⚠️ \(facility.name): No wait time data in response")
                     if isKirkwood {
-                        print("🟡 KIRKWOOD: Parsing returned nil - this means parsing failed!")
+                        debugLog("🟡 KIRKWOOD: Parsing returned nil - this means parsing failed!")
                     }
                 }
                 return waitTime
@@ -1053,43 +977,43 @@ public class WaitTimeService: ObservableObject {
             .catch { error -> AnyPublisher<WaitTime?, WaitTimeError> in
                 let endTime = Date()
                 let duration = endTime.timeIntervalSince(startTime)
-                print("⏱️ \(facility.name): Request completed in \(String(format: "%.2f", duration))s")
+                debugLog("⏱️ \(facility.name): Request completed in \(String(format: "%.2f", duration))s")
                 
                 // KIRKWOOD DEBUGGING: Special error tracking
                 let isKirkwood = facility.id == "total-access-12624"
                 if isKirkwood {
-                    print("🟡 KIRKWOOD ERROR: API request failed!")
-                    print("🟡 KIRKWOOD: Duration: \(String(format: "%.2f", duration))s")
-                    print("🟡 KIRKWOOD: Error type: \(type(of: error))")
+                    debugLog("🟡 KIRKWOOD ERROR: API request failed!")
+                    debugLog("🟡 KIRKWOOD: Duration: \(String(format: "%.2f", duration))s")
+                    debugLog("🟡 KIRKWOOD: Error type: \(type(of: error))")
                 }
                 
                 if let urlError = error as? URLError {
-                    print("❌ \(facility.name): Network error: \(urlError.localizedDescription)")
-                    print("❌ Error domain: \(urlError.errorCode), code: \(urlError.code.rawValue)")
+                    debugLog("❌ \(facility.name): Network error: \(urlError.localizedDescription)")
+                    debugLog("❌ Error domain: \(urlError.errorCode), code: \(urlError.code.rawValue)")
                     
                     if isKirkwood {
-                        print("🟡 KIRKWOOD: URLError code: \(urlError.code.rawValue)")
-                        print("🟡 KIRKWOOD: URLError description: \(urlError.localizedDescription)")
+                        debugLog("🟡 KIRKWOOD: URLError code: \(urlError.code.rawValue)")
+                        debugLog("🟡 KIRKWOOD: URLError description: \(urlError.localizedDescription)")
                     }
                     
                     switch urlError.code {
                     case .timedOut:
-                        print("❌ TIMEOUT - Request timed out")
-                        if isKirkwood { print("🟡 KIRKWOOD: Request timed out after 30s") }
+                        debugLog("❌ TIMEOUT - Request timed out")
+                        if isKirkwood { debugLog("🟡 KIRKWOOD: Request timed out after 30s") }
                     case .notConnectedToInternet:
-                        print("❌ NO INTERNET - Device not connected")
-                        if isKirkwood { print("🟡 KIRKWOOD: No internet connection") }
+                        debugLog("❌ NO INTERNET - Device not connected")
+                        if isKirkwood { debugLog("🟡 KIRKWOOD: No internet connection") }
                     case .cannotConnectToHost:
-                        print("❌ CONNECTION FAILED - Cannot reach server")
-                        if isKirkwood { print("🟡 KIRKWOOD: Cannot connect to ClockwiseMD server") }
+                        debugLog("❌ CONNECTION FAILED - Cannot reach server")
+                        if isKirkwood { debugLog("🟡 KIRKWOOD: Cannot connect to ClockwiseMD server") }
                     default:
-                        print("❌ OTHER ERROR - \(urlError.localizedDescription)")
-                        if isKirkwood { print("🟡 KIRKWOOD: Other URL error: \(urlError.localizedDescription)") }
+                        debugLog("❌ OTHER ERROR - \(urlError.localizedDescription)")
+                        if isKirkwood { debugLog("🟡 KIRKWOOD: Other URL error: \(urlError.localizedDescription)") }
                     }
                 } else {
-                    print("❌ \(facility.name): Other error: \(error.localizedDescription)")
+                    debugLog("❌ \(facility.name): Other error: \(error.localizedDescription)")
                     if isKirkwood {
-                        print("🟡 KIRKWOOD: Non-URL error: \(error.localizedDescription)")
+                        debugLog("🟡 KIRKWOOD: Non-URL error: \(error.localizedDescription)")
                     }
                 }
                 
@@ -1103,14 +1027,14 @@ public class WaitTimeService: ObservableObject {
     /// Fetches wait time from Mercy-GoHealth via Solv API
     private func fetchMercyGoHealthWaitTime(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
         guard let apiEndpoint = facility.apiEndpoint,
-              let url = URL(string: apiEndpoint) else {
-            print("❌ \(facility.name): No Mercy API endpoint configured")
+              let url = validatedTrustedURL(from: apiEndpoint, purpose: .api, facilityName: facility.name) else {
+            debugLog("❌ \(facility.name): No Mercy API endpoint configured")
             return Just(nil)
                 .setFailureType(to: WaitTimeError.self)
                 .eraseToAnyPublisher()
         }
         
-        print("🏥 \(facility.name): Fetching from Mercy API: \(apiEndpoint)")
+        debugLog("🏥 \(facility.name): Fetching from Mercy API: \(apiEndpoint)")
         
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -1124,7 +1048,7 @@ public class WaitTimeService: ObservableObject {
             .retry(1)
             .tryMap { data, response -> Data in
                 if let httpResponse = response as? HTTPURLResponse {
-                    print("📊 \(facility.name): Mercy API response status: \(httpResponse.statusCode)")
+                    debugLog("📊 \(facility.name): Mercy API response status: \(httpResponse.statusCode)")
                     
                     guard httpResponse.statusCode == 200 else {
                         throw WaitTimeError.apiError("HTTP \(httpResponse.statusCode)")
@@ -1136,13 +1060,13 @@ public class WaitTimeService: ObservableObject {
             .map { response -> WaitTime? in
                 let endTime = Date()
                 let duration = endTime.timeIntervalSince(startTime)
-                print("⏱️ \(facility.name): Mercy request completed in \(String(format: "%.2f", duration))s")
+                debugLog("⏱️ \(facility.name): Mercy request completed in \(String(format: "%.2f", duration))s")
                 
                 // DETAILED MERCY DEBUGGING
-                print("🔍 MERCY DEBUG for \(facility.name):")
-                print("   - Raw API Response: \(response)")
-                print("   - Wait Time: \(response.time) minutes")
-                print("   - Facility ID: \(facility.id)")
+                debugLog("🔍 MERCY DEBUG for \(facility.name):")
+                debugLog("   - Raw API Response: \(response)")
+                debugLog("   - Wait Time: \(response.time) minutes")
+                debugLog("   - Facility ID: \(facility.id)")
                 
                 let waitTime = WaitTime(
                     facilityId: facility.id,
@@ -1154,17 +1078,17 @@ public class WaitTimeService: ObservableObject {
                     waitTimeRange: nil
                 )
                 
-                print("✅ \(facility.name): Created Mercy WaitTime object - \(response.time) minutes")
-                print("✅ \(facility.name): WaitTime.waitMinutes = \(waitTime.waitMinutes)")
-                print("✅ \(facility.name): WaitTime.status = \(waitTime.status)")
+                debugLog("✅ \(facility.name): Created Mercy WaitTime object - \(response.time) minutes")
+                debugLog("✅ \(facility.name): WaitTime.waitMinutes = \(waitTime.waitMinutes)")
+                debugLog("✅ \(facility.name): WaitTime.status = \(waitTime.status)")
                 
                 return waitTime
             }
             .catch { error -> AnyPublisher<WaitTime?, WaitTimeError> in
                 let endTime = Date()
                 let duration = endTime.timeIntervalSince(startTime)
-                print("⏱️ \(facility.name): Mercy request completed in \(String(format: "%.2f", duration))s")
-                print("❌ \(facility.name): Mercy API error - \(error.localizedDescription)")
+                debugLog("⏱️ \(facility.name): Mercy request completed in \(String(format: "%.2f", duration))s")
+                debugLog("❌ \(facility.name): Mercy API error - \(error.localizedDescription)")
                 
                 return Just(nil)
                     .setFailureType(to: WaitTimeError.self)
@@ -1177,14 +1101,14 @@ public class WaitTimeService: ObservableObject {
     /// Computes "wait" as minutes until the earliest upcoming available slot.
     private func fetchStLukesSchedulingWaitTime(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
         guard let apiEndpoint = facility.apiEndpoint,
-              let url = URL(string: apiEndpoint) else {
-            print("❌ \(facility.name): Invalid St. Luke's API endpoint")
+              let url = validatedTrustedURL(from: apiEndpoint, purpose: .api, facilityName: facility.name) else {
+            debugLog("❌ \(facility.name): Invalid St. Luke's API endpoint")
             return Just(nil)
                 .setFailureType(to: WaitTimeError.self)
                 .eraseToAnyPublisher()
         }
 
-        print("🏥 \(facility.name): Fetching from St. Luke's scheduling API: \(apiEndpoint)")
+        debugLog("🏥 \(facility.name): Fetching from St. Luke's scheduling API: \(apiEndpoint)")
 
         var request = URLRequest(url: url)
         request.setValue("application/json, text/plain;q=0.9, */*;q=0.8", forHTTPHeaderField: "Accept")
@@ -1270,15 +1194,15 @@ public class WaitTimeService: ObservableObject {
             .map { waitTime -> WaitTime? in
                 let duration = Date().timeIntervalSince(startTime)
                 if let waitTime = waitTime {
-                    print("✅ \(facility.name): St. Luke's data parsed in \(String(format: "%.2f", duration))s - wait=\(waitTime.waitMinutes) min, status=\(waitTime.status)")
+                    debugLog("✅ \(facility.name): St. Luke's data parsed in \(String(format: "%.2f", duration))s - wait=\(waitTime.waitMinutes) min, status=\(waitTime.status)")
                 } else {
-                    print("⚠️ \(facility.name): St. Luke's response returned no wait-time data")
+                    debugLog("⚠️ \(facility.name): St. Luke's response returned no wait-time data")
                 }
                 return waitTime
             }
             .catch { error -> AnyPublisher<WaitTime?, WaitTimeError> in
                 let duration = Date().timeIntervalSince(startTime)
-                print("❌ \(facility.name): St. Luke's API error in \(String(format: "%.2f", duration))s - \(error.localizedDescription)")
+                debugLog("❌ \(facility.name): St. Luke's API error in \(String(format: "%.2f", duration))s - \(error.localizedDescription)")
                 return Just(nil)
                     .setFailureType(to: WaitTimeError.self)
                     .eraseToAnyPublisher()
@@ -1289,14 +1213,14 @@ public class WaitTimeService: ObservableObject {
     /// Fallback method to get wait times from Mercy-GoHealth website
     private func fetchMercyGoHealthWebsiteWaitTime(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
         guard let websiteURL = facility.websiteURL,
-              let url = URL(string: websiteURL) else {
-            print("❌ \(facility.name): No website URL available")
+              let url = validatedTrustedURL(from: websiteURL, purpose: .website, facilityName: facility.name) else {
+            debugLog("❌ \(facility.name): No website URL available")
             return Just(nil)
                 .setFailureType(to: WaitTimeError.self)
                 .eraseToAnyPublisher()
         }
         
-        print("🌐 \(facility.name): Trying website fallback: \(websiteURL)")
+        debugLog("🌐 \(facility.name): Trying website fallback: \(websiteURL)")
         
         var request = URLRequest(url: url)
         request.setValue("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
@@ -1318,7 +1242,7 @@ public class WaitTimeService: ObservableObject {
                 return self.parseHTMLWaitTime(htmlContent, for: facility)
             }
             .catch { error -> AnyPublisher<WaitTime?, WaitTimeError> in
-                print("❌ \(facility.name): Website fallback failed - \(error.localizedDescription)")
+                debugLog("❌ \(facility.name): Website fallback failed - \(error.localizedDescription)")
                 return Just(nil)
                     .setFailureType(to: WaitTimeError.self)
                     .eraseToAnyPublisher()
@@ -1342,7 +1266,7 @@ public class WaitTimeService: ObservableObject {
                let waitTimeRange = Range(match.range(at: 1), in: htmlContent),
                let waitMinutes = Int(htmlContent[waitTimeRange]) {
                 
-                print("✅ \(facility.name): Parsed wait time from website - \(waitMinutes) min")
+                debugLog("✅ \(facility.name): Parsed wait time from website - \(waitMinutes) min")
                 
                 return WaitTime(
                     facilityId: facility.id,
@@ -1356,14 +1280,14 @@ public class WaitTimeService: ObservableObject {
             }
         }
         
-        print("⚠️ \(facility.name): No wait time found in website content")
+        debugLog("⚠️ \(facility.name): No wait time found in website content")
         return nil
     }
     
     /// Fetches wait time from Solv API
     private func fetchSolvWaitTime(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
         // TODO: Implement Solv API integration
-        print("⚠️ \(facility.name): Solv API not yet implemented")
+        debugLog("⚠️ \(facility.name): Solv API not yet implemented")
         return Just(nil)
             .setFailureType(to: WaitTimeError.self)
             .eraseToAnyPublisher()
@@ -1372,7 +1296,7 @@ public class WaitTimeService: ObservableObject {
     /// Fetches wait time from Epic MyChart API
     private func fetchEpicWaitTime(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
         // TODO: Implement Epic MyChart API integration
-        print("⚠️ \(facility.name): Epic MyChart API not yet implemented")
+        debugLog("⚠️ \(facility.name): Epic MyChart API not yet implemented")
         return Just(nil)
             .setFailureType(to: WaitTimeError.self)
             .eraseToAnyPublisher()
@@ -1381,13 +1305,13 @@ public class WaitTimeService: ObservableObject {
     /// Fetches wait time from SSM Health via 1upHealth FHIR API
     private func fetchSSMHealthFHIRWaitTime(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
         guard let apiEndpoint = facility.apiEndpoint else {
-            print("❌ \(facility.name): No FHIR API endpoint configured")
+            debugLog("❌ \(facility.name): No FHIR API endpoint configured")
             
             // Return mock data for development/testing
             return fetchSSMHealthMockWaitTime(for: facility)
         }
         
-        print("🌐 \(facility.name): Fetching from SSM Health FHIR API: \(apiEndpoint)")
+        debugLog("🌐 \(facility.name): Fetching from SSM Health FHIR API: \(apiEndpoint)")
         
         // For now, return mock data until we have actual API credentials
         // This allows the app to work while pursuing business partnership
@@ -1407,7 +1331,7 @@ public class WaitTimeService: ObservableObject {
     
     /// Returns mock wait time data for SSM Health facilities during development
     private func fetchSSMHealthMockWaitTime(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
-        print("🎭 \(facility.name): Returning mock SSM Health wait time data")
+        debugLog("🎭 \(facility.name): Returning mock SSM Health wait time data")
         
         // Generate realistic mock data based on facility type and time of day
         let calendar = Calendar.current
@@ -1445,7 +1369,7 @@ public class WaitTimeService: ObservableObject {
             waitTimeRange: nil
         )
         
-        print("✅ \(facility.name): Mock data - \(waitMinutes) min wait, \(patientsInLine) patients")
+        debugLog("✅ \(facility.name): Mock data - \(waitMinutes) min wait, \(patientsInLine) patients")
         
         // Simulate network delay without creating persistent timers
         return Just(mockWaitTime)
@@ -1457,7 +1381,7 @@ public class WaitTimeService: ObservableObject {
     /// Authenticates with SSM Health FHIR API via OAuth 2.0
     private func authenticateSSMHealthFHIR() -> AnyPublisher<FHIROAuthToken, WaitTimeError> {
         // TODO: Implement OAuth 2.0 authentication when credentials are available
-        print("🔐 Authenticating with SSM Health FHIR API...")
+        debugLog("🔐 Authenticating with SSM Health FHIR API...")
         
         let mockToken = FHIROAuthToken(
             accessToken: "mock_access_token",
@@ -1474,7 +1398,7 @@ public class WaitTimeService: ObservableObject {
     /// Queries SSM Health FHIR API for wait time observations
     private func querySSMHealthWaitTimes(facility: Facility, token: FHIROAuthToken) -> AnyPublisher<WaitTime?, WaitTimeError> {
         // TODO: Implement actual FHIR query when API access is available
-        print("📊 Querying SSM Health FHIR for wait time observations...")
+        debugLog("📊 Querying SSM Health FHIR for wait time observations...")
         
         // Mock FHIR query would look like:
         // GET /fhir/dstu2/Observation?category=survey&code=wait-time&subject.identifier=facility-id
@@ -1485,7 +1409,7 @@ public class WaitTimeService: ObservableObject {
     /// Parses wait time from SSM Health FHIR Observation resources
     private func parseSSMHealthFHIRWaitTime(from bundle: FHIRBundle, for facility: Facility) -> WaitTime? {
         guard let entries = bundle.entry, !entries.isEmpty else {
-            print("⚠️ \(facility.name): No FHIR observations found")
+            debugLog("⚠️ \(facility.name): No FHIR observations found")
             return nil
         }
         
@@ -1509,7 +1433,7 @@ public class WaitTimeService: ObservableObject {
                     continue
                 }
                 
-                print("✅ \(facility.name): Parsed FHIR wait time - \(waitMinutes) min")
+                debugLog("✅ \(facility.name): Parsed FHIR wait time - \(waitMinutes) min")
                 
                 return WaitTime(
                     facilityId: facility.id,
@@ -1523,7 +1447,7 @@ public class WaitTimeService: ObservableObject {
             }
         }
         
-        print("⚠️ \(facility.name): No wait time observations found in FHIR bundle")
+        debugLog("⚠️ \(facility.name): No wait time observations found in FHIR bundle")
         return nil
     }
     
@@ -1557,25 +1481,25 @@ public class WaitTimeService: ObservableObject {
         let isKirkwood = facility.id == "total-access-12624"
         let debugPrefix = isKirkwood ? "🟡 KIRKWOOD DEBUG" : "🏥"
         
-        print("\(debugPrefix) \(facility.name): Processing ClockwiseMD response at \(currentTime)")
-        print("   📊 Raw API Data:")
-        print("      - Facility ID: \(facility.id)")
-        print("      - Hospital ID from API: \(response.hospitalId)")
-        print("      - currentWait: \(hospitalWaits.currentWait ?? "nil")")
-        print("      - queueLength: \(hospitalWaits.queueLength ?? 0)")
-        print("      - queueTotal: \(hospitalWaits.queueTotal ?? 0) (CAPACITY - NOT CURRENT PATIENTS)")
-        print("      - nextAvailableVisit: \(hospitalWaits.nextAvailableVisit ?? 0)")
+        debugLog("\(debugPrefix) \(facility.name): Processing ClockwiseMD response at \(currentTime)")
+        debugLog("   📊 Raw API Data:")
+        debugLog("      - Facility ID: \(facility.id)")
+        debugLog("      - Hospital ID from API: \(response.hospitalId)")
+        debugLog("      - currentWait: \(hospitalWaits.currentWait ?? "nil")")
+        debugLog("      - queueLength: \(hospitalWaits.queueLength ?? 0)")
+        debugLog("      - queueTotal: \(hospitalWaits.queueTotal ?? 0) (CAPACITY - NOT CURRENT PATIENTS)")
+        debugLog("      - nextAvailableVisit: \(hospitalWaits.nextAvailableVisit ?? 0)")
         
         if isKirkwood {
-            print("🟡 KIRKWOOD: This is the facility showing N/A - tracking every step...")
+            debugLog("🟡 KIRKWOOD: This is the facility showing N/A - tracking every step...")
         }
         
         // COMPREHENSIVE DEBUGGING: Check if appointment queues exist
-        print("   🔭 DEBUGGING: Checking appointment queues...")
+        debugLog("   🔭 DEBUGGING: Checking appointment queues...")
         if let appointmentQueues = response.appointmentQueues {
-            print("   ✅ appointmentQueues exists! Count: \(appointmentQueues.count)")
+            debugLog("   ✅ appointmentQueues exists! Count: \(appointmentQueues.count)")
         } else {
-            print("   ❌ appointmentQueues is NIL!")
+            debugLog("   ❌ appointmentQueues is NIL!")
         }
         
         // PRIORITY 1: Extract ACTUAL patients in line data from appointment queues (most accurate)
@@ -1586,57 +1510,57 @@ public class WaitTimeService: ObservableObject {
         
         // First, try to get patients in line from individual appointment queues (most accurate)
         if let appointmentQueues = response.appointmentQueues {
-            print("   📋 Appointment Queues Data (\(appointmentQueues.count) queues):")
+            debugLog("   📋 Appointment Queues Data (\(appointmentQueues.count) queues):")
             debugSource = "appointment_queues"
             
             for (index, queue) in appointmentQueues.enumerated() {
-                print("      Queue \(index + 1):")
-                print("         - queueId: \(queue.queueId ?? -1)")
+                debugLog("      Queue \(index + 1):")
+                debugLog("         - queueId: \(queue.queueId ?? -1)")
                 
                 if let queueWaits = queue.queueWaits {
                     let queuePatients = queueWaits.currentPatientsInLine ?? 0
-                    print("         - currentPatientsInLine: \(queuePatients)")
-                    print("         - currentWait: \(queueWaits.currentWait ?? -1)")
-                    print("         - currentWaitRange: \(queueWaits.currentWaitRange ?? "nil")")
+                    debugLog("         - currentPatientsInLine: \(queuePatients)")
+                    debugLog("         - currentWait: \(queueWaits.currentWait ?? -1)")
+                    debugLog("         - currentWaitRange: \(queueWaits.currentWaitRange ?? "nil")")
                     patientsInLine += queuePatients
                     individualQueueCounts.append(queuePatients)
                     
                     // Capture wait time range from first queue with valid data (ignore N/A ranges)
                     if waitTimeRange == nil, let range = queueWaits.currentWaitRange, range != "N/A" && !range.isEmpty {
                         waitTimeRange = range
-                        print("         → Captured waitTimeRange: '\(range)'")
+                        debugLog("         → Captured waitTimeRange: '\(range)'")
                     }
                 } else {
-                    print("         - queueWaits: NIL")
+                    debugLog("         - queueWaits: NIL")
                     individualQueueCounts.append(0)
                 }
             }
-            print("   👥 TOTAL Patients in line (from appointment queues): \(patientsInLine)")
-            print("   🔢 Individual queue counts: \(individualQueueCounts)")
-            print("   ⏱️ Wait time range: \(waitTimeRange ?? "nil")")
+            debugLog("   👥 TOTAL Patients in line (from appointment queues): \(patientsInLine)")
+            debugLog("   🔢 Individual queue counts: \(individualQueueCounts)")
+            debugLog("   ⏱️ Wait time range: \(waitTimeRange ?? "nil")")
             
             // CRITICAL VALIDATION: Ensure we're not accidentally using queue_total
             if patientsInLine == hospitalWaits.queueTotal {
-                print("   ⚠️ WARNING: Patient count matches queueTotal (\(hospitalWaits.queueTotal ?? 0)) - possible parsing error!")
-                print("   ⚠️ queueTotal represents CAPACITY, not current patients!")
-                print("   ⚠️ Using correct appointment queue sum: \(patientsInLine)")
+                debugLog("   ⚠️ WARNING: Patient count matches queueTotal (\(hospitalWaits.queueTotal ?? 0)) - possible parsing error!")
+                debugLog("   ⚠️ queueTotal represents CAPACITY, not current patients!")
+                debugLog("   ⚠️ Using correct appointment queue sum: \(patientsInLine)")
             }
         } else {
             // Fallback to top-level queue data - but NEVER use queueTotal
             patientsInLine = hospitalWaits.queueLength ?? 0
             debugSource = "hospital_waits.queue_length"
-            print("   👥 Patients in line (from hospital_waits.queue_length): \(patientsInLine)")
-            print("   ⚠️ NOT using queueTotal (\(hospitalWaits.queueTotal ?? 0)) - that's capacity!")
+            debugLog("   👥 Patients in line (from hospital_waits.queue_length): \(patientsInLine)")
+            debugLog("   ⚠️ NOT using queueTotal (\(hospitalWaits.queueTotal ?? 0)) - that's capacity!")
         }
         
         let queueTotal = hospitalWaits.queueTotal ?? 0
         let nextAvailableSlot = hospitalWaits.nextAvailableVisit ?? 0
         
-        print("   🔍 FINAL DECISION:")
-        print("      - Source: \(debugSource)")
-        print("      - patientsInLine: \(patientsInLine) ← THIS IS WHAT USERS SEE")
-        print("      - queueTotal: \(queueTotal) (CAPACITY - NOT DISPLAYED)")
-        print("      - queueLength: \(hospitalWaits.queueLength ?? 0) (fallback only)")
+        debugLog("   🔍 FINAL DECISION:")
+        debugLog("      - Source: \(debugSource)")
+        debugLog("      - patientsInLine: \(patientsInLine) ← THIS IS WHAT USERS SEE")
+        debugLog("      - queueTotal: \(queueTotal) (CAPACITY - NOT DISPLAYED)")
+        debugLog("      - queueLength: \(hospitalWaits.queueLength ?? 0) (fallback only)")
         
         // VALIDATION: Compare with website expectation
         self.validatePatientCount(facility: facility, calculatedCount: patientsInLine, queueTotal: queueTotal)
@@ -1650,36 +1574,36 @@ public class WaitTimeService: ObservableObject {
             
             // Check for closed/unavailable status first
             if currentWaitLowercased.contains("closed") || currentWaitLowercased == "closed" {
-                print("🔒 \(facility.name): Facility is CLOSED - currentWait: '\(currentWait)'")
+                debugLog("🔒 \(facility.name): Facility is CLOSED - currentWait: '\(currentWait)'")
                 status = .closed
                 waitMinutes = 0
             } else if currentWaitLowercased.contains("n/a") || currentWaitLowercased == "n/a" || 
                       currentWaitLowercased.contains("unavailable") || currentWaitLowercased == "unavailable" {
-                print("⚠️ \(facility.name): currentWait shows N/A, but checking if we have queue data...")
+                debugLog("⚠️ \(facility.name): currentWait shows N/A, but checking if we have queue data...")
                 
                 if isKirkwood {
-                    print("🟡 KIRKWOOD DEBUG: N/A condition triggered!")
-                    print("🟡 KIRKWOOD: currentWait = '\(currentWait)'")
-                    print("🟡 KIRKWOOD: currentWaitLowercased = '\(currentWaitLowercased)'")
-                    print("🟡 KIRKWOOD: patientsInLine = \(patientsInLine)")
-                    print("🟡 KIRKWOOD: queueTotal = \(queueTotal)")
-                    print("🟡 KIRKWOOD: Condition (patientsInLine >= 0): \(patientsInLine >= 0)")
-                    print("🟡 KIRKWOOD: Condition (queueTotal > 0): \(queueTotal > 0)")
-                    print("🟡 KIRKWOOD: Combined condition: \(patientsInLine >= 0 || queueTotal > 0)")
+                    debugLog("🟡 KIRKWOOD DEBUG: N/A condition triggered!")
+                    debugLog("🟡 KIRKWOOD: currentWait = '\(currentWait)'")
+                    debugLog("🟡 KIRKWOOD: currentWaitLowercased = '\(currentWaitLowercased)'")
+                    debugLog("🟡 KIRKWOOD: patientsInLine = \(patientsInLine)")
+                    debugLog("🟡 KIRKWOOD: queueTotal = \(queueTotal)")
+                    debugLog("🟡 KIRKWOOD: Condition (patientsInLine >= 0): \(patientsInLine >= 0)")
+                    debugLog("🟡 KIRKWOOD: Condition (queueTotal > 0): \(queueTotal > 0)")
+                    debugLog("🟡 KIRKWOOD: Combined condition: \(patientsInLine >= 0 || queueTotal > 0)")
                 }
                 
                 // SPECIAL HANDLING: If currentWait is N/A but we have queue data, prioritize queue data
                 if patientsInLine >= 0 || queueTotal > 0 {
-                    print("✅ \(facility.name): Queue data available despite N/A currentWait - treating as OPEN")
+                    debugLog("✅ \(facility.name): Queue data available despite N/A currentWait - treating as OPEN")
                     if isKirkwood {
-                        print("🟡 KIRKWOOD: Setting status to .open - should display 'No patients'")
+                        debugLog("🟡 KIRKWOOD: Setting status to .open - should display 'No patients'")
                     }
                     status = .open
                     waitMinutes = 0
                 } else {
-                    print("❌ \(facility.name): Service UNAVAILABLE - currentWait: '\(currentWait)' and no queue data")
+                    debugLog("❌ \(facility.name): Service UNAVAILABLE - currentWait: '\(currentWait)' and no queue data")
                     if isKirkwood {
-                        print("🟡 KIRKWOOD: Setting status to .unavailable - would display 'N/A'")
+                        debugLog("🟡 KIRKWOOD: Setting status to .unavailable - would display 'N/A'")
                     }
                     status = .unavailable
                     waitMinutes = 0
@@ -1708,25 +1632,25 @@ public class WaitTimeService: ObservableObject {
             if patientsInLine >= 0 || queueTotal > 0 {
                 status = .open // If we have queue data, assume facility is open
                 waitMinutes = 0
-                print("ℹ️ \(facility.name): No currentWait but have queue data - assuming OPEN")
+                debugLog("ℹ️ \(facility.name): No currentWait but have queue data - assuming OPEN")
             } else {
                 status = .unknown
                 waitMinutes = 0
-                print("❓ \(facility.name): No wait time or queue data available")
+                debugLog("❓ \(facility.name): No wait time or queue data available")
             }
         }
         
         // Log the final extracted data (patients in line is the priority)
-        print("✅ \(facility.name): Extracted data:")
-        print("   👥 Patients in line: \(patientsInLine)")
-        print("   📊 Queue capacity: \(queueTotal)")
-        print("   ⏱️ Wait time (backup): \(waitMinutes) min")
-        print("   🏥 Status: \(status)")
+        debugLog("✅ \(facility.name): Extracted data:")
+        debugLog("   👥 Patients in line: \(patientsInLine)")
+        debugLog("   📊 Queue capacity: \(queueTotal)")
+        debugLog("   ⏱️ Wait time (backup): \(waitMinutes) min")
+        debugLog("   🏥 Status: \(status)")
         
         // KIRKWOOD FIX: Don't use web scraping fallback when API provides valid data
         // Only use web scraping if API truly has no queue data (no appointment_queues)
         if status == .open && patientsInLine == 0 && queueTotal == 0 && response.appointmentQueues == nil {
-            print("🔍 \(facility.name): No queue data from API, attempting web scraping fallback...")
+            debugLog("🔍 \(facility.name): No queue data from API, attempting web scraping fallback...")
             // Web scraping will be handled asynchronously - return current data for now
             // The web scraping will update the waitTimes dictionary when it completes
             DispatchQueue.global(qos: .background).async {
@@ -1734,8 +1658,8 @@ public class WaitTimeService: ObservableObject {
             }
         } else if patientsInLine == 0 && response.appointmentQueues != nil {
             if isKirkwood {
-                print("🟡 KIRKWOOD: API provided valid appointment queues with 0 patients - NOT using web scraping")
-                print("🟡 KIRKWOOD: This should prevent the incorrect '3 patients' override")
+                debugLog("🟡 KIRKWOOD: API provided valid appointment queues with 0 patients - NOT using web scraping")
+                debugLog("🟡 KIRKWOOD: This should prevent the incorrect '3 patients' override")
             }
         }
         
@@ -1750,14 +1674,14 @@ public class WaitTimeService: ObservableObject {
         )
         
         if isKirkwood {
-            print("🟡 KIRKWOOD FINAL: Created WaitTime object:")
-            print("🟡 KIRKWOOD: - facilityId: \(waitTime.facilityId)")
-            print("🟡 KIRKWOOD: - status: \(waitTime.status)")
-            print("🟡 KIRKWOOD: - patientsInLine: \(waitTime.patientsInLine)")
-            print("🟡 KIRKWOOD: - waitMinutes: \(waitTime.waitMinutes)")
-            print("🟡 KIRKWOOD: - patientDisplayText: '\(waitTime.patientDisplayText)'")
-            print("🟡 KIRKWOOD: - displayText: '\(waitTime.displayText)'")
-            print("🟡 KIRKWOOD: If this shows 'N/A', the issue is in the UI layer, not parsing!")
+            debugLog("🟡 KIRKWOOD FINAL: Created WaitTime object:")
+            debugLog("🟡 KIRKWOOD: - facilityId: \(waitTime.facilityId)")
+            debugLog("🟡 KIRKWOOD: - status: \(waitTime.status)")
+            debugLog("🟡 KIRKWOOD: - patientsInLine: \(waitTime.patientsInLine)")
+            debugLog("🟡 KIRKWOOD: - waitMinutes: \(waitTime.waitMinutes)")
+            debugLog("🟡 KIRKWOOD: - patientDisplayText: '\(waitTime.patientDisplayText)'")
+            debugLog("🟡 KIRKWOOD: - displayText: '\(waitTime.displayText)'")
+            debugLog("🟡 KIRKWOOD: If this shows 'N/A', the issue is in the UI layer, not parsing!")
         }
         
         return waitTime
@@ -1770,15 +1694,15 @@ public class WaitTimeService: ObservableObject {
         
         // For facility 13598 (and others), we know the website often shows different values
         // Log detailed validation information
-        print("🔍 VALIDATION for \(facilityName) (\(facilityId)):")
-        print("   📱 App calculated count: \(calculatedCount)")
-        print("   🌐 Expected from website: Should match current API appointment_queues sum")
-        print("   ⚠️ Queue total (capacity): \(queueTotal) - DO NOT USE for patient count")
+        debugLog("🔍 VALIDATION for \(facilityName) (\(facilityId)):")
+        debugLog("   📱 App calculated count: \(calculatedCount)")
+        debugLog("   🌐 Expected from website: Should match current API appointment_queues sum")
+        debugLog("   ⚠️ Queue total (capacity): \(queueTotal) - DO NOT USE for patient count")
         
         // Check for common discrepancy patterns
         if calculatedCount == queueTotal && queueTotal > 0 {
-            print("   🚨 CRITICAL: App might be showing capacity (\(queueTotal)) instead of actual patients (\(calculatedCount))")
-            print("   🚨 This is the exact issue the user reported!")
+            debugLog("   🚨 CRITICAL: App might be showing capacity (\(queueTotal)) instead of actual patients (\(calculatedCount))")
+            debugLog("   🚨 This is the exact issue the user reported!")
         }
         
         // Store validation data for potential debugging
@@ -1791,16 +1715,16 @@ public class WaitTimeService: ObservableObject {
         ]
         
         // Log for debugging purposes
-        print("   📊 Validation data: \(validationData)")
+        debugLog("   📊 Validation data: \(validationData)")
         
         // If there's a potential discrepancy, log it prominently
         if calculatedCount != 0 && calculatedCount == queueTotal {
-            print("⚠️⚠️⚠️ POTENTIAL PATIENT COUNT DISCREPANCY DETECTED ⚠️⚠️⚠️")
-            print("Facility: \(facilityName)")
-            print("Calculated patients: \(calculatedCount)")
-            print("Queue capacity: \(queueTotal)")
-            print("If these match, we might be using capacity instead of actual patient count!")
-            print("⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️")
+            debugLog("⚠️⚠️⚠️ POTENTIAL PATIENT COUNT DISCREPANCY DETECTED ⚠️⚠️⚠️")
+            debugLog("Facility: \(facilityName)")
+            debugLog("Calculated patients: \(calculatedCount)")
+            debugLog("Queue capacity: \(queueTotal)")
+            debugLog("If these match, we might be using capacity instead of actual patient count!")
+            debugLog("⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️")
         }
     }
     
@@ -1809,12 +1733,12 @@ public class WaitTimeService: ObservableObject {
     /// Scrapes patients in line data from Total Access website as fallback
     private func scrapeWebsitePatientsInLine(for facility: Facility) {
         guard let websiteURL = facility.websiteURL,
-              let url = URL(string: websiteURL) else {
-            print("❌ \(facility.name): No website URL available for scraping")
+              let url = validatedTrustedURL(from: websiteURL, purpose: .website, facilityName: facility.name) else {
+            debugLog("❌ \(facility.name): No website URL available for scraping")
             return
         }
         
-        print("🕷️ \(facility.name): Starting web scraping from \(websiteURL)")
+        debugLog("🕷️ \(facility.name): Starting web scraping from \(websiteURL)")
         
         var request = URLRequest(url: url)
         request.setValue("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
@@ -1828,43 +1752,43 @@ public class WaitTimeService: ObservableObject {
             let duration = Date().timeIntervalSince(startTime)
             
             if let error = error {
-                print("❌ \(facility.name): Web scraping failed after \(String(format: "%.2f", duration))s - \(error.localizedDescription)")
+                debugLog("❌ \(facility.name): Web scraping failed after \(String(format: "%.2f", duration))s - \(error.localizedDescription)")
                 return
             }
             
             guard let httpResponse = response as? HTTPURLResponse else {
-                print("❌ \(facility.name): Invalid HTTP response")
+                debugLog("❌ \(facility.name): Invalid HTTP response")
                 return
             }
             
-            print("📊 \(facility.name): Web scraping HTTP \(httpResponse.statusCode) in \(String(format: "%.2f", duration))s")
+            debugLog("📊 \(facility.name): Web scraping HTTP \(httpResponse.statusCode) in \(String(format: "%.2f", duration))s")
             
             guard httpResponse.statusCode == 200,
                   let data = data,
                   let htmlContent = String(data: data, encoding: .utf8) else {
-                print("❌ \(facility.name): Failed to get HTML content")
+                debugLog("❌ \(facility.name): Failed to get HTML content")
                 return
             }
             
-            print("📝 \(facility.name): Received \(data.count) bytes of HTML content")
+            debugLog("📝 \(facility.name): Received \(data.count) bytes of HTML content")
             
             // Parse the HTML for patients in line data
             if let patientsInLine = self?.parseHTMLPatientsInLine(htmlContent, for: facility) {
-                print("✅ \(facility.name): Successfully scraped \(patientsInLine) patients in line")
+                debugLog("✅ \(facility.name): Successfully scraped \(patientsInLine) patients in line")
                 
                 // Update the wait time with scraped data
                 DispatchQueue.main.async {
                     self?.updateWaitTimeWithScrapedData(facility: facility, patientsInLine: patientsInLine)
                 }
             } else {
-                print("⚠️ \(facility.name): Could not extract patients in line from website")
+                debugLog("⚠️ \(facility.name): Could not extract patients in line from website")
             }
         }.resume()
     }
     
     /// Parses HTML content to extract patients in line information
     private func parseHTMLPatientsInLine(_ htmlContent: String, for facility: Facility) -> Int? {
-        print("🔍 \(facility.name): Parsing HTML for patients in line data...")
+        debugLog("🔍 \(facility.name): Parsing HTML for patients in line data...")
         
         // Common patterns for patients in line on Total Access websites
         let patientsPatterns = [
@@ -1904,10 +1828,10 @@ public class WaitTimeService: ObservableObject {
                         
                         // Validate the number is reasonable (0-50 patients)
                         if patientsCount >= 0 && patientsCount <= 50 {
-                            print("✅ \(facility.name): Found \(patientsCount) patients using pattern \(index + 1): \(pattern)")
+                            debugLog("✅ \(facility.name): Found \(patientsCount) patients using pattern \(index + 1): \(pattern)")
                             return patientsCount
                         } else {
-                            print("⚠️ \(facility.name): Rejected unreasonable patient count: \(patientsCount)")
+                            debugLog("⚠️ \(facility.name): Rejected unreasonable patient count: \(patientsCount)")
                         }
                     }
                 }
@@ -1922,7 +1846,7 @@ public class WaitTimeService: ObservableObject {
         let htmlLower = htmlContent.lowercased()
         for indicator in waitIndicators {
             if htmlLower.contains(indicator) {
-                print("✅ \(facility.name): Found no-wait indicator: '\(indicator)'")
+                debugLog("✅ \(facility.name): Found no-wait indicator: '\(indicator)'")
                 return 0
             }
         }
@@ -1934,23 +1858,23 @@ public class WaitTimeService: ObservableObject {
         
         for indicator in closedIndicators {
             if htmlLower.contains(indicator) {
-                print("🔒 \(facility.name): Found closed indicator: '\(indicator)'")
+                debugLog("🔒 \(facility.name): Found closed indicator: '\(indicator)'")
                 return nil // Return nil to indicate facility is closed
             }
         }
         
-        print("❌ \(facility.name): No patients in line data found in HTML content")
+        debugLog("❌ \(facility.name): No patients in line data found in HTML content")
         
         // For debugging, save a sample of the HTML
         let sampleHTML = String(htmlContent.prefix(1000))
-        print("📝 \(facility.name): HTML Sample: \(sampleHTML)")
+        debugLog("📝 \(facility.name): HTML Sample: \(sampleHTML)")
         
         return nil
     }
     
     /// Updates the cached wait time with scraped patients in line data
     private func updateWaitTimeWithScrapedData(facility: Facility, patientsInLine: Int) {
-        print("🔄 \(facility.name): Updating wait time with scraped data - \(patientsInLine) patients")
+        debugLog("🔄 \(facility.name): Updating wait time with scraped data - \(patientsInLine) patients")
         
         // Get existing wait time or create a new one
         let existingWaitTime = waitTimes[facility.id]
@@ -1968,7 +1892,7 @@ public class WaitTimeService: ObservableObject {
         // Update the published wait times
         waitTimes[facility.id] = updatedWaitTime
         
-        print("✅ \(facility.name): Wait time updated with scraped data - \(patientsInLine) patients in line")
+        debugLog("✅ \(facility.name): Wait time updated with scraped data - \(patientsInLine) patients in line")
     }
     
     /// Parses wait time from Mercy-GoHealth API response (deprecated - using Solv now)
@@ -2074,7 +1998,7 @@ public class WaitTimeService: ObservableObject {
             // Check circuit breaker
             let breakerState = circuitBreakerState[apiEndpoint, default: CircuitBreakerState()]
             if !breakerState.shouldAttemptCall {
-                print("🚫 Circuit breaker open for \(apiEndpoint)")
+                debugLog("🚫 Circuit breaker open for \(apiEndpoint)")
                 return false
             }
             
@@ -2082,7 +2006,7 @@ public class WaitTimeService: ObservableObject {
             if let lastCall = lastApiCall[apiEndpoint] {
                 let timeSinceLastCall = Date().timeIntervalSince(lastCall)
                 if timeSinceLastCall < minimumApiInterval {
-                    print("🚫 Rate limited for \(apiEndpoint) - \(timeSinceLastCall)s since last call")
+                    debugLog("🚫 Rate limited for \(apiEndpoint) - \(timeSinceLastCall)s since last call")
                     return false
                 }
             }
@@ -2138,7 +2062,7 @@ public class WaitTimeService: ObservableObject {
     /// Logs wait time statistics for monitoring
     private func logWaitTimeStats(_ waitTimes: [WaitTime]) {
         guard !waitTimes.isEmpty else {
-            print("📈 No wait times to analyze")
+            debugLog("📈 No wait times to analyze")
             return
         }
         
@@ -2151,9 +2075,9 @@ public class WaitTimeService: ObservableObject {
         let noWaitCount = waitTimes.filter { $0.waitMinutes == 0 }.count
         let longWaitCount = waitTimes.filter { $0.waitMinutes > 30 }.count
         
-        print("📈 Wait Time Stats:")
-        print("   Range: \(minWait)-\(maxWait) min | Avg: \(avgWait) min")
-        print("   No wait: \(noWaitCount) | Long wait (>30min): \(longWaitCount)")
+        debugLog("📈 Wait Time Stats:")
+        debugLog("   Range: \(minWait)-\(maxWait) min | Avg: \(avgWait) min")
+        debugLog("   No wait: \(noWaitCount) | Long wait (>30min): \(longWaitCount)")
     }
 }
 

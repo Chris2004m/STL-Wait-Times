@@ -237,7 +237,7 @@ struct AccessibilityEnhancedBottomSheet<Content: View>: View {
             try audioSession?.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
             try audioSession?.setActive(true)
         } catch {
-            print("Failed to setup audio session: \(error)")
+            debugLog("Failed to setup audio session: \(error)")
         }
     }
     

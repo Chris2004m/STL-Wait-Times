@@ -1,6 +1,11 @@
 # Ignore documentation and image files
 docs.md
 *.png
+*.backup
+*.bak
+*.orig
+*.tmp
+*~
 
 # Documentation files to exclude
 process-todos.md
