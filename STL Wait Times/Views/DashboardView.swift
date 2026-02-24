@@ -962,7 +962,10 @@ struct DashboardView: View {
                     return "\(displayWaitTime)"
                 }
             } else {
-                // For other facilities (Mercy GoHealth), always show wait time
+                // For non-ClockwiseMD facilities, honor open/closed/unavailable status.
+                guard waitTime.status == .open else {
+                    return "N/A"
+                }
                 return "\(waitTime.waitMinutes)"
             }
         }

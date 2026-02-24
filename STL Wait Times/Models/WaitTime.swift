@@ -183,6 +183,7 @@ struct QueueWaits: Codable {
 enum APIProvider {
     case clockwiseMD  // Total Access Urgent Care
     case mercyGoHealth  // Mercy-GoHealth Urgent Care
+    case stLukesScheduling  // St. Luke's Urgent Care scheduling API
     case solv  // Solv platform integration
     case epic  // Epic MyChart "On My Way"
     case ssmHealthFHIR  // SSM Health via 1upHealth FHIR API
@@ -191,6 +192,7 @@ enum APIProvider {
         switch self {
         case .clockwiseMD: return "ClockwiseMD"
         case .mercyGoHealth: return "Mercy-GoHealth"
+        case .stLukesScheduling: return "St. Luke's Scheduling"
         case .solv: return "Solv"
         case .epic: return "Epic MyChart"
         case .ssmHealthFHIR: return "SSM Health FHIR"
@@ -254,6 +256,20 @@ struct SolvWaitTime: Codable {
         case status
         case updatedAt = "updated_at"
     }
+}
+
+/// Response model for St. Luke's scheduling preview API
+struct StLukesScheduleResponse: Codable {
+    let slots: [StLukesScheduleSlot]
+}
+
+/// Slot information from St. Luke's scheduling preview API
+struct StLukesScheduleSlot: Codable {
+    let id: String
+    let fhirLocationId: String?
+    let locationText: String?
+    let start: String
+    let end: String?
 }
 
 /// FHIR Response models for SSM Health via 1upHealth

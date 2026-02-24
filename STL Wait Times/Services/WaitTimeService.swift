@@ -479,6 +479,8 @@ public class WaitTimeService: ObservableObject {
             return fetchClockwiseMDAPIWaitTime(for: facility)
         case .mercyGoHealth:
             return fetchMercyGoHealthWaitTime(for: facility)
+        case .stLukesScheduling:
+            return fetchStLukesSchedulingWaitTime(for: facility)
         case .solv:
             return fetchSolvWaitTime(for: facility)
         case .epic:
@@ -494,8 +496,12 @@ public class WaitTimeService: ObservableObject {
             return .clockwiseMD
         } else if facility.id.hasPrefix("mercy-gohealth") {
             return .mercyGoHealth
+        } else if facility.id.hasPrefix("st-lukes") {
+            return .stLukesScheduling
         } else if facility.id.hasPrefix("ssm-health") {
             return .ssmHealthFHIR
+        } else if facility.apiEndpoint?.contains("schedule.stlukes-stl.com") == true {
+            return .stLukesScheduling
         } else if facility.apiEndpoint?.contains("solv") == true {
             return .solv
         } else if facility.apiEndpoint?.contains("epic") == true || facility.apiEndpoint?.contains("mychart") == true {
@@ -1160,6 +1166,119 @@ public class WaitTimeService: ObservableObject {
                 print("⏱️ \(facility.name): Mercy request completed in \(String(format: "%.2f", duration))s")
                 print("❌ \(facility.name): Mercy API error - \(error.localizedDescription)")
                 
+                return Just(nil)
+                    .setFailureType(to: WaitTimeError.self)
+                    .eraseToAnyPublisher()
+            }
+            .eraseToAnyPublisher()
+    }
+
+    /// Fetches wait time from St. Luke's scheduling preview API.
+    /// Computes "wait" as minutes until the earliest upcoming available slot.
+    private func fetchStLukesSchedulingWaitTime(for facility: Facility) -> AnyPublisher<WaitTime?, WaitTimeError> {
+        guard let apiEndpoint = facility.apiEndpoint,
+              let url = URL(string: apiEndpoint) else {
+            print("❌ \(facility.name): Invalid St. Luke's API endpoint")
+            return Just(nil)
+                .setFailureType(to: WaitTimeError.self)
+                .eraseToAnyPublisher()
+        }
+
+        print("🏥 \(facility.name): Fetching from St. Luke's scheduling API: \(apiEndpoint)")
+
+        var request = URLRequest(url: url)
+        request.setValue("application/json, text/plain;q=0.9, */*;q=0.8", forHTTPHeaderField: "Accept")
+        request.setValue("https://www.stlukes-stl.com", forHTTPHeaderField: "Referer")
+        request.setValue("STL-WaitLine/1.0", forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 30.0
+
+        let startTime = Date()
+        let iso8601Fractional = ISO8601DateFormatter()
+        iso8601Fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let iso8601Standard = ISO8601DateFormatter()
+        iso8601Standard.formatOptions = [.withInternetDateTime]
+
+        return session.dataTaskPublisher(for: request)
+            .timeout(.seconds(30), scheduler: DispatchQueue.global(qos: .userInitiated))
+            .retry(1)
+            .tryMap { data, response -> Data in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw WaitTimeError.apiError("Invalid HTTP response")
+                }
+
+                guard 200...299 ~= httpResponse.statusCode else {
+                    throw WaitTimeError.apiError("HTTP \(httpResponse.statusCode)")
+                }
+
+                return data
+            }
+            .tryMap { data -> WaitTime? in
+                let now = Date()
+
+                if let scheduleResponse = try? JSONDecoder().decode(StLukesScheduleResponse.self, from: data) {
+                    let slotDates = scheduleResponse.slots
+                        .compactMap { slot in
+                            iso8601Fractional.date(from: slot.start) ?? iso8601Standard.date(from: slot.start)
+                        }
+                        .sorted()
+
+                    if let nextSlot = slotDates.first(where: { $0 >= now }) {
+                        let minutesUntilNext = max(0, Int(ceil(nextSlot.timeIntervalSince(now) / 60)))
+
+                        return WaitTime(
+                            facilityId: facility.id,
+                            waitMinutes: minutesUntilNext,
+                            patientsInLine: 0,
+                            lastUpdated: now,
+                            nextAvailableSlot: minutesUntilNext,
+                            status: .open,
+                            waitTimeRange: nil
+                        )
+                    }
+
+                    let status: WaitTime.FacilityStatus = facility.isCurrentlyOpen ? .unavailable : .closed
+                    return WaitTime(
+                        facilityId: facility.id,
+                        waitMinutes: 0,
+                        patientsInLine: 0,
+                        lastUpdated: now,
+                        nextAvailableSlot: 0,
+                        status: status,
+                        waitTimeRange: nil
+                    )
+                }
+
+                let rawResponse = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+
+                if rawResponse?.contains("no slots expected") == true {
+                    let status: WaitTime.FacilityStatus = facility.isCurrentlyOpen ? .unavailable : .closed
+                    return WaitTime(
+                        facilityId: facility.id,
+                        waitMinutes: 0,
+                        patientsInLine: 0,
+                        lastUpdated: now,
+                        nextAvailableSlot: 0,
+                        status: status,
+                        waitTimeRange: nil
+                    )
+                }
+
+                throw WaitTimeError.noData
+            }
+            .map { waitTime -> WaitTime? in
+                let duration = Date().timeIntervalSince(startTime)
+                if let waitTime = waitTime {
+                    print("✅ \(facility.name): St. Luke's data parsed in \(String(format: "%.2f", duration))s - wait=\(waitTime.waitMinutes) min, status=\(waitTime.status)")
+                } else {
+                    print("⚠️ \(facility.name): St. Luke's response returned no wait-time data")
+                }
+                return waitTime
+            }
+            .catch { error -> AnyPublisher<WaitTime?, WaitTimeError> in
+                let duration = Date().timeIntervalSince(startTime)
+                print("❌ \(facility.name): St. Luke's API error in \(String(format: "%.2f", duration))s - \(error.localizedDescription)")
                 return Just(nil)
                     .setFailureType(to: WaitTimeError.self)
                     .eraseToAnyPublisher()

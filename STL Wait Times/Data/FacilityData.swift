@@ -1209,6 +1209,161 @@ struct FacilityData {
                 sunday: OperatingHours.DayHours(open: "09:00", close: "17:00")
             )
         ),
+
+        // ST. LUKE'S URGENT CARE + WALK-IN LOCATIONS
+
+        // Eureka St. Luke's Walk-In Clinic
+        Facility(
+            id: "st-lukes-walk-in-eureka",
+            name: "St. Luke's Walk-In Clinic - Eureka",
+            address: "103 Hilltop Village Center Drive",
+            city: "Eureka",
+            state: "MO",
+            zipCode: "63025",
+            phone: "(314) 864-7839",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.50629107835506, longitude: -90.64261326057346),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://schedule.stlukes-stl.com/0saml2/1saml2/schedule/previewLocationSlots?test=false&patientType=new&fhirLocationId=4379404195",
+            websiteURL: "https://www.stlukes-stl.com/locations/st-lukes-walk-in-clinic-eureka",
+            operatingHours: .standardUrgentCare
+        ),
+
+        // Chesterfield St. Luke's Urgent Care
+        Facility(
+            id: "st-lukes-urgent-care-chesterfield",
+            name: "St. Luke's Urgent Care Center - Chesterfield",
+            address: "17421 Chesterfield Airport Rd",
+            city: "Chesterfield",
+            state: "MO",
+            zipCode: "63005",
+            phone: "(636) 685-7720",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.66901699967911, longitude: -90.60921698940379),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://schedule.stlukes-stl.com/0saml2/1saml2/schedule/previewLocationSlots?test=false&patientType=new&fhirLocationId=276372382",
+            websiteURL: "https://www.stlukes-stl.com/locations/st-lukes-urgent-care-center-chesterfield",
+            operatingHours: .standardUrgentCare
+        ),
+
+        // Creve Coeur St. Luke's Urgent Care
+        Facility(
+            id: "st-lukes-urgent-care-creve-coeur",
+            name: "St. Luke's Urgent Care Center - Creve Coeur",
+            address: "11550 Olive Blvd",
+            city: "Creve Coeur",
+            state: "MO",
+            zipCode: "63141",
+            phone: "(314) 542-7690",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.67075037298327, longitude: -90.4372181894037),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://schedule.stlukes-stl.com/0saml2/1saml2/schedule/previewLocationSlots?test=false&patientType=new&fhirLocationId=40462355",
+            websiteURL: "https://www.stlukes-stl.com/locations/st-lukes-urgent-care-center-creve-coeur",
+            operatingHours: .standardUrgentCare
+        ),
+
+        // Ellisville St. Luke's Urgent Care
+        Facility(
+            id: "st-lukes-urgent-care-ellisville",
+            name: "St. Luke's Urgent Care Center - Ellisville",
+            address: "233 Clarkson Rd",
+            city: "Ellisville",
+            state: "MO",
+            zipCode: "63011",
+            phone: "(636) 256-8644",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.59964806890928, longitude: -90.58523386057024),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://schedule.stlukes-stl.com/0saml2/1saml2/schedule/previewLocationSlots?test=false&patientType=new&fhirLocationId=13870511",
+            websiteURL: "https://www.stlukes-stl.com/locations/st-lukes-urgent-care-center-ellisville",
+            operatingHours: .standardUrgentCare
+        ),
+
+        // Arnold St. Luke's Urgent Care
+        Facility(
+            id: "st-lukes-urgent-care-arnold",
+            name: "St. Luke's Urgent Care Center - Arnold",
+            address: "832 Arnold Commons",
+            city: "Arnold",
+            state: "MO",
+            zipCode: "63010",
+            phone: "(636) 685-7899",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.43847066318515, longitude: -90.38260285872444),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://schedule.stlukes-stl.com/0saml2/1saml2/schedule/previewLocationSlots?test=false&patientType=new&fhirLocationId=928197489",
+            websiteURL: "https://www.stlukes-stl.com/locations/st-lukes-urgent-care-center-arnold",
+            operatingHours: .standardUrgentCare
+        ),
+
+        // Fenton St. Luke's Urgent Care
+        Facility(
+            id: "st-lukes-urgent-care-fenton",
+            name: "St. Luke's Urgent Care Center - Fenton",
+            address: "774 Gravois Bluffs Blvd, Suite A",
+            city: "Fenton",
+            state: "MO",
+            zipCode: "63026",
+            phone: "(636) 343-5223",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.50293769465144, longitude: -90.45076343173766),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://schedule.stlukes-stl.com/0saml2/1saml2/schedule/previewLocationSlots?test=false&patientType=new&fhirLocationId=12597628",
+            websiteURL: "https://www.stlukes-stl.com/locations/st-lukes-urgent-care-center-fenton",
+            operatingHours: .standardUrgentCare
+        ),
+
+        // Ladue St. Luke's Urgent Care
+        Facility(
+            id: "st-lukes-urgent-care-ladue",
+            name: "St. Luke's Urgent Care Center - Ladue",
+            address: "8857 Ladue Rd",
+            city: "St. Louis",
+            state: "MO",
+            zipCode: "63124",
+            phone: "(314) 576-8189",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.65417013390694, longitude: -90.35204214522473),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://schedule.stlukes-stl.com/0saml2/1saml2/schedule/previewLocationSlots?test=false&patientType=new&fhirLocationId=187372068",
+            websiteURL: "https://www.stlukes-stl.com/locations/st-lukes-urgent-care-center-ladue",
+            operatingHours: .standardUrgentCare
+        ),
+
+        // O'Fallon St. Luke's Urgent Care
+        Facility(
+            id: "st-lukes-urgent-care-ofallon",
+            name: "St. Luke's Urgent Care Center - O'Fallon",
+            address: "5551 WingHaven Blvd, Suite 100",
+            city: "O'Fallon",
+            state: "MO",
+            zipCode: "63368",
+            phone: "(636) 695-2500",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.75261154392055, longitude: -90.7477273452213),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://schedule.stlukes-stl.com/0saml2/1saml2/schedule/previewLocationSlots?test=false&patientType=new&fhirLocationId=13870513",
+            websiteURL: "https://www.stlukes-stl.com/locations/st-lukes-urgent-care-center-ofallon",
+            operatingHours: .standardUrgentCare
+        ),
+
+        // Des Peres St. Luke's Walk-In Clinic
+        Facility(
+            id: "st-lukes-walk-in-des-peres",
+            name: "St. Luke's Walk-In Clinic - Des Peres",
+            address: "12304 Manchester Rd",
+            city: "Des Peres",
+            state: "MO",
+            zipCode: "63131",
+            phone: "(314) 965-6871",
+            facilityType: .urgentCare,
+            coordinate: CLLocationCoordinate2D(latitude: 38.60299232320302, longitude: -90.4419459028983),
+            cmsAverageWaitMinutes: nil,
+            apiEndpoint: "https://schedule.stlukes-stl.com/0saml2/1saml2/schedule/previewLocationSlots?test=false&patientType=new&fhirLocationId=4853605163",
+            websiteURL: "https://www.stlukes-stl.com/locations/st-lukes-walk-in-clinic-des-peres",
+            operatingHours: .standardUrgentCare
+        ),
         
         // AFC Urgent Care Sedalia (Hospital ID 5955)
         Facility(
@@ -1226,7 +1381,7 @@ struct FacilityData {
             websiteURL: "https://www.afcurgentcare.com/sedalia/",
             operatingHours: .standardUrgentCare
         )
-        // Testing all sixty facilities (31 Total Access + 28 Mercy-GoHealth + 1 AFC) with improved batch processing
+        // Expanded urgent-care dataset with Total Access, Mercy-GoHealth, St. Luke's, and AFC locations.
     ]
     
     /// Emergency departments only
