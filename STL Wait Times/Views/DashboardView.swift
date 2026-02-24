@@ -912,8 +912,10 @@ struct DashboardView: View {
     
     // MARK: - Medical Facility Data
     private var facilityData: [MedicalFacility] {
-        // Sort facilities by distance from user location first, then convert to MedicalFacility format
-        let sortedFacilities = locationService.sortFacilitiesByDistance(FacilityData.allFacilities)
+        // Always sort nearest-to-farthest using the same distance source shown in UI.
+        let sortedFacilities = FacilityData.allFacilities.sorted { facilityA, facilityB in
+            distanceToFacility(facilityA) < distanceToFacility(facilityB)
+        }
         
         // Convert sorted facilities to MedicalFacility format with real wait times
         let realFacilities = sortedFacilities.map { facility in
@@ -1003,25 +1005,22 @@ struct DashboardView: View {
         }
     }
     
-    /// Calculate distance and driving time to facility in format "2.1 mi • 🚗 5min"
+    /// Calculate display distance to a facility.
     private func calculateDistance(to facility: Facility) -> String {
-        // Get distance (either real location or fallback)
-        let distanceString: String
-        if let distance = locationService.distance(to: facility) {
-            distanceString = locationService.formatDistance(distance)
-        } else {
-            // Fallback calculation from St. Louis center
-            let stlCenter = CLLocation(latitude: 38.6270, longitude: -90.1994)
-            let facilityLocation = CLLocation(
-                latitude: facility.coordinate.latitude,
-                longitude: facility.coordinate.longitude
-            )
-            let distance = stlCenter.distance(from: facilityLocation)
-            distanceString = locationService.formatDistance(distance)
-        }
-        
         // Return distance only (driving time feature removed)
-        return distanceString
+        return locationService.formatDistance(distanceToFacility(facility))
+    }
+
+    /// Compute facility distance from user location, with a stable St. Louis fallback.
+    private func distanceToFacility(_ facility: Facility) -> CLLocationDistance {
+        let referenceLocation = locationService.currentLocation
+            ?? CLLocation(latitude: 38.6270, longitude: -90.1994)
+        let facilityLocation = CLLocation(
+            latitude: facility.coordinate.latitude,
+            longitude: facility.coordinate.longitude
+        )
+
+        return referenceLocation.distance(from: facilityLocation)
     }
     
     /// Parse wait time range (e.g., "12 - 27") and return the average

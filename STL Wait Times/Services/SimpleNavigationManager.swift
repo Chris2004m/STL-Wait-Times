@@ -12,7 +12,6 @@ import MapboxNavigationUIKit
 import MapboxDirections
 import CoreLocation
 import MapKit
-import Contacts
 
 /// Simplified navigation manager that handles basic navigation functionality
 /// Compatible with the latest Mapbox Navigation SDK
@@ -70,20 +69,8 @@ class SimpleNavigationManager: ObservableObject {
         print("   📍 Address: \(facility.address), \(facility.city), \(facility.state) \(facility.zipCode)")
         print("   🎯 Coordinates: \(facility.coordinate.latitude), \(facility.coordinate.longitude)")
         
-        // Create a proper placemark with full address information for Apple Maps
-        // This ensures Maps can display the correct address and location
-        let addressDict: [String: Any] = [
-            CNPostalAddressStreetKey: facility.address,
-            CNPostalAddressCityKey: facility.city,
-            CNPostalAddressStateKey: facility.state,
-            CNPostalAddressPostalCodeKey: facility.zipCode,
-            CNPostalAddressCountryKey: "United States"
-        ]
-        
-        let placemark = MKPlacemark(
-            coordinate: facility.coordinate,
-            addressDictionary: addressDict
-        )
+        // Use coordinate-first placemark so Apple Maps resolves canonical address details.
+        let placemark = MKPlacemark(coordinate: facility.coordinate)
         
         let mapItem = MKMapItem(placemark: placemark)
         mapItem.name = facility.name
