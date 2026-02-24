@@ -191,7 +191,7 @@ struct DashboardView: View {
             
             Spacer()
         }
-        .padding(.top, compassButtonTopOffset + compassButtonSize + buttonSpacing) // Position below location button
+        .padding(.top, compassButtonTopOffset) // Anchor map-style button at top-right
     }
     
     private var locationButton: some View {
@@ -228,7 +228,7 @@ struct DashboardView: View {
             
             Spacer()
         }
-        .padding(.top, compassButtonTopOffset + compassButtonSize + buttonSpacing) // Position below compass button
+        .padding(.top, compassButtonTopOffset + compassButtonSize + buttonSpacing) // Place location button below map-style button
     }
     
     // MARK: - Computed Properties for Consistent Styling
@@ -276,7 +276,7 @@ struct DashboardView: View {
     
     /// Top offset for compass button positioning
     private var compassButtonTopOffset: CGFloat {
-        60 // Distance from top including safe area
+        12 // Tight alignment to top-right safe area
     }
     
     /// Spacing between compass and location buttons
